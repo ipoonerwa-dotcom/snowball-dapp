@@ -18,6 +18,24 @@ export const ORACLE = addr(process.env.NEXT_PUBLIC_ORACLE, "0x66A3266017446b5F4a
 /** 合约齐了才开放交互,否则前端走"待部署"展示态 */
 export const DEPLOYED = STAKING !== ZERO && ORACLE !== ZERO;
 
+/** 买入/邀请:buy-router(部署后由 env 注入;未配则②板块走"待部署"态) */
+export const BUY_ROUTER = addr(process.env.NEXT_PUBLIC_BUY_ROUTER);
+export const REFERRAL_ENABLED = BUY_ROUTER !== ZERO;
+
+/** PancakeSwap V2 路由 + WBNB(仅用于前端报价 getAmountsOut;真正兑换在 buy-router 内) */
+export const PANCAKE_ROUTER = "0x10ED43C718714eb63d5aA57B78B54704E256024E" as const;
+export const WBNB = "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c" as const;
+
+/** 团队等级(雪球系),与合约 rateBps[0..5]=5%..10% 一一对应 */
+export const TIERS = [
+  { name: "雪花", rate: 5 },
+  { name: "雪球", rate: 6 },
+  { name: "雪坡", rate: 7 },
+  { name: "雪崩", rate: 8 },
+  { name: "冰川", rate: 9 },
+  { name: "雪峰", rate: 10 },
+] as const;
+
 export const REWARD_POOL_TARGET = Number(process.env.NEXT_PUBLIC_REWARD_POOL_TARGET ?? 40000);
 
 export const EXPLORER = CHAIN_ID === 56 ? "https://bscscan.com" : "https://testnet.bscscan.com";
