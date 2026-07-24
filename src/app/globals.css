@@ -44,6 +44,9 @@ input { font-family: var(--mono); }
 
 .w { max-width: 1080px; margin: 0 auto; padding: 0 26px; position: relative; z-index: 2; }
 
+/* 防止任何窄屏元素撑出横向滚动 */
+html, body { overflow-x: hidden; max-width: 100%; }
+
 /* ---------- header ---------- */
 .top { display: flex; align-items: center; justify-content: space-between; padding: 20px 0; }
 .brand { display: flex; align-items: center; gap: 11px; font-weight: 800; letter-spacing: 0.08em; font-size: 15px; }
@@ -196,6 +199,16 @@ h2 { font-size: clamp(22px, 3vw, 30px); font-weight: 800; margin: 10px 0 3px; }
   .comm .grid { grid-template-columns: 1fr; }
   .nav { display: none; }
   .prow { grid-template-columns: auto 1fr; row-gap: 10px; }
+}
+
+/* 手机:品牌收缩、留出连接钱包按钮空间,避免头部溢出 */
+@media (max-width: 560px) {
+  .w { padding: 0 16px; }
+  .top { padding: 16px 0; gap: 10px; }
+  .brand { font-size: 14px; gap: 8px; min-width: 0; }
+  .brand .by { display: none; }
+  .wal { padding: 9px 14px; font-size: 12.5px; white-space: nowrap; flex-shrink: 0; }
+  .ft { overflow-wrap: anywhere; }
 }
 
 @keyframes spin { to { transform: rotate(360deg); } }
