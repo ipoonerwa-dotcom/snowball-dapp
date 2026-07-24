@@ -19,7 +19,7 @@ export const ORACLE = addr(process.env.NEXT_PUBLIC_ORACLE, "0x66A3266017446b5F4a
 export const DEPLOYED = STAKING !== ZERO && ORACLE !== ZERO;
 
 /** 买入/邀请:buy-router(BSC 主网已部署 2026-07-24;env 可覆盖) */
-export const BUY_ROUTER = addr(process.env.NEXT_PUBLIC_BUY_ROUTER, "0x713EbB00E957d331c6959F545CCF6B6FD252050C");
+export const BUY_ROUTER = addr(process.env.NEXT_PUBLIC_BUY_ROUTER, "0xB65BC6d7Ba44A9d0f92AF630C29ef30e3dDF82e0");
 export const REFERRAL_ENABLED = BUY_ROUTER !== ZERO;
 
 /** PancakeSwap V2 路由 + WBNB(仅用于前端报价 getAmountsOut;真正兑换在 buy-router 内) */
