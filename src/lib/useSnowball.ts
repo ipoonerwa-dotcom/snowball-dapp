@@ -26,12 +26,19 @@ export function useGlobalStats() {
       { address: STAKING, abi: STAKING_ABI, functionName: "totalPrincipal", chainId: CHAIN_ID },
       { address: STAKING, abi: STAKING_ABI, functionName: "stakingOpen", chainId: CHAIN_ID },
       { address: STAKING, abi: STAKING_ABI, functionName: "currentDayIdx", chainId: CHAIN_ID },
+      { address: TOKEN, abi: ERC20_ABI, functionName: "balanceOf", args: [STAKING], chainId: CHAIN_ID },
     ],
     query: { enabled: DEPLOYED, refetchInterval: POLL },
   });
+  const bookedReserve = (data?.[0]?.result as bigint | undefined) ?? 0n;
+  const totalPrincipal = (data?.[1]?.result as bigint | undefined) ?? 0n;
+  const bal = data?.[4]?.result as bigint | undefined;
+  // 有效奖励池 = 合约实际余额 - 本金:社区直接转账进来的币立刻计入(合约领取时会自动 sync 入账,
+  // 所以这个口径 = 真正能领到的量;bookedReserve 只是尚未 sync 的账面值,可能滞后)。
+  const effective = bal !== undefined && bal > totalPrincipal ? bal - totalPrincipal : bookedReserve;
   return {
-    rewardReserve: (data?.[0]?.result as bigint | undefined) ?? 0n,
-    totalPrincipal: (data?.[1]?.result as bigint | undefined) ?? 0n,
+    rewardReserve: effective > bookedReserve ? effective : bookedReserve,
+    totalPrincipal,
     stakingOpen: (data?.[2]?.result as boolean | undefined) ?? false,
     dayIdx: (data?.[3]?.result as bigint | undefined) ?? 0n,
   };

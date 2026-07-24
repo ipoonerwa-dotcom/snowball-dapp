@@ -11,15 +11,15 @@ export const WC_PROJECT_ID = (process.env.NEXT_PUBLIC_WC_PROJECT_ID || "").trim(
 
 /** SNOWBALL 代币(BSC 主网已上线) */
 export const TOKEN = addr(process.env.NEXT_PUBLIC_TOKEN, "0x4De6554be9eB837112646E6367aAE2EbB32daAAA");
-/** 签约合约 / TWAP 预言机(BSC 主网已部署 2026-07-24;env 可覆盖) */
-export const STAKING = addr(process.env.NEXT_PUBLIC_STAKING, "0xD01870FFD8Af16FEB1Cd282e0878e8B32B93Fb64");
+/** 签约合约 / TWAP 预言机(BSC 主网 2026-07-25 v2:支持直接转账注资;env 可覆盖) */
+export const STAKING = addr(process.env.NEXT_PUBLIC_STAKING, "0xe04ca7Abe8B8FA905E12678e7Df1F506f88BBc55");
 export const ORACLE = addr(process.env.NEXT_PUBLIC_ORACLE, "0x66A3266017446b5F4aACEaC60de7b29eb5508500");
 
 /** 合约齐了才开放交互,否则前端走"待部署"展示态 */
 export const DEPLOYED = STAKING !== ZERO && ORACLE !== ZERO;
 
 /** 买入/邀请:buy-router(BSC 主网已部署 2026-07-24;env 可覆盖) */
-export const BUY_ROUTER = addr(process.env.NEXT_PUBLIC_BUY_ROUTER, "0xB65BC6d7Ba44A9d0f92AF630C29ef30e3dDF82e0");
+export const BUY_ROUTER = addr(process.env.NEXT_PUBLIC_BUY_ROUTER, "0x3B9C23beFeA243A17769E462EcE630c8A2AC87ff");
 export const REFERRAL_ENABLED = BUY_ROUTER !== ZERO;
 
 /** PancakeSwap V2 路由 + WBNB(仅用于前端报价 getAmountsOut;真正兑换在 buy-router 内) */
