@@ -197,17 +197,20 @@ h2 { font-size: clamp(22px, 3vw, 30px); font-weight: 800; margin: 10px 0 3px; }
   .stats { grid-template-columns: 1fr 1fr; }
   .stk { grid-template-columns: 1fr; }
   .comm .grid { grid-template-columns: 1fr; }
-  .nav { display: none; }
+  /* 窄屏导航不隐藏:换行到品牌下方单独一行,仍可跳转各板块 */
+  .top { flex-wrap: wrap; row-gap: 10px; }
+  .nav { order: 3; width: 100%; gap: 20px; font-size: 13.5px; }
   .prow { grid-template-columns: auto 1fr; row-gap: 10px; }
 }
 
 /* 手机:品牌收缩、留出连接钱包按钮空间,避免头部溢出 */
 @media (max-width: 560px) {
   .w { padding: 0 16px; }
-  .top { padding: 16px 0; gap: 10px; }
+  .top { padding: 16px 0 12px; gap: 10px; }
   .brand { font-size: 14px; gap: 8px; min-width: 0; }
   .brand .by { display: none; }
   .wal { padding: 9px 14px; font-size: 12.5px; white-space: nowrap; flex-shrink: 0; }
+  .nav { gap: 0; justify-content: space-between; font-size: 13px; }
   .ft { overflow-wrap: anywhere; }
 }
 

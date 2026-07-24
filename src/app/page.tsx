@@ -22,11 +22,8 @@ export default function Home() {
         </div>
       )}
       <StatsRow />
-      <SignSection />
-      <MyPositions />
-      <EffectSteps />
       {REFERRAL_ENABLED && (
-        <section id="buy" style={{ marginTop: 32 }}>
+        <section id="buy">
           <div className="eb">
             <i />
             买入 · Buy
@@ -38,6 +35,11 @@ export default function Home() {
           </div>
         </section>
       )}
+      <div style={{ marginTop: 32 }}>
+        <SignSection />
+      </div>
+      <MyPositions />
+      <EffectSteps />
       <ReferralSection />
       <Footer />
     </div>
