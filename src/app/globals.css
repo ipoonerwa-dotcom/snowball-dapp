@@ -48,7 +48,30 @@ input { font-family: var(--mono); }
 html, body { overflow-x: hidden; max-width: 100%; }
 
 /* ---------- header ---------- */
-.top { display: flex; align-items: center; justify-content: space-between; padding: 20px 0; }
+.top { display: flex; align-items: center; justify-content: space-between; padding: 20px 0; position: relative; }
+.hright { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+
+/* 汉堡按钮(仅手机显示;展开时三条杠变 X) */
+.burger { display: none; width: 38px; height: 38px; border-radius: 11px; border: 1px solid var(--line2); background: var(--glass); cursor: pointer; padding: 0; position: relative; flex-shrink: 0; }
+.burger i { position: absolute; left: 9px; right: 9px; height: 2px; border-radius: 2px; background: var(--teal); transition: transform 0.25s ease, opacity 0.2s ease, top 0.25s ease; }
+.burger i:nth-child(1) { top: 12px; }
+.burger i:nth-child(2) { top: 18px; }
+.burger i:nth-child(3) { top: 24px; }
+.burger.on i:nth-child(1) { top: 18px; transform: rotate(45deg); }
+.burger.on i:nth-child(2) { opacity: 0; }
+.burger.on i:nth-child(3) { top: 18px; transform: rotate(-45deg); }
+
+/* 手机下拉菜单(青色玻璃卡,右上角锚定) */
+.mnav-mask { position: fixed; inset: 0; z-index: 40; }
+.mnav {
+  position: absolute; top: calc(100% - 6px); right: 0; z-index: 50; min-width: 200px;
+  background: rgba(6, 14, 26, 0.94); border: 1px solid var(--line2); border-radius: 16px; padding: 8px;
+  backdrop-filter: blur(14px); box-shadow: 0 18px 44px rgba(4, 20, 40, 0.65);
+  animation: mnavIn 0.18s ease;
+}
+@keyframes mnavIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
+.mnav a { display: block; padding: 13px 16px; border-radius: 11px; font-size: 14.5px; font-weight: 700; color: var(--snow); }
+.mnav a:hover, .mnav a:active { background: rgba(94, 234, 212, 0.1); color: var(--teal); }
 .brand { display: flex; align-items: center; gap: 11px; font-weight: 800; letter-spacing: 0.08em; font-size: 15px; }
 .brand .by { color: var(--mut2); font-weight: 600; letter-spacing: 0; }
 .nav { display: flex; gap: 24px; color: var(--mut); font-size: 14px; font-weight: 600; }
@@ -197,9 +220,9 @@ h2 { font-size: clamp(22px, 3vw, 30px); font-weight: 800; margin: 10px 0 3px; }
   .stats { grid-template-columns: 1fr 1fr; }
   .stk { grid-template-columns: 1fr; }
   .comm .grid { grid-template-columns: 1fr; }
-  /* 窄屏导航不隐藏:换行到品牌下方单独一行,仍可跳转各板块 */
-  .top { flex-wrap: wrap; row-gap: 10px; }
-  .nav { order: 3; width: 100%; gap: 20px; font-size: 13.5px; }
+  /* 窄屏:内联导航收起,改用汉堡菜单 */
+  .nav { display: none; }
+  .burger { display: block; }
   .prow { grid-template-columns: auto 1fr; row-gap: 10px; }
 }
 
@@ -210,7 +233,6 @@ h2 { font-size: clamp(22px, 3vw, 30px); font-weight: 800; margin: 10px 0 3px; }
   .brand { font-size: 14px; gap: 8px; min-width: 0; }
   .brand .by { display: none; }
   .wal { padding: 9px 14px; font-size: 12.5px; white-space: nowrap; flex-shrink: 0; }
-  .nav { gap: 0; justify-content: space-between; font-size: 13px; }
   .ft { overflow-wrap: anywhere; }
 }
 
