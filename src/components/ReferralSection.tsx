@@ -80,6 +80,9 @@ export default function ReferralSection() {
               </span>
             ))}
           </div>
+          <div className="note">
+            等级按团队累计买入(U)升级:雪球 $5,000 · 雪坡 $10,000 · 雪崩 $20,000 · 冰川 $35,000 · 雪峰 $50,000;约每 15 分钟更新一次。
+          </div>
         </div>
 
         <div>

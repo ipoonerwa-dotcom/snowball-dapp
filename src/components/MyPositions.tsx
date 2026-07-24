@@ -6,12 +6,13 @@ import { waitForTransactionReceipt } from "wagmi/actions";
 import { STAKING_ABI } from "@/lib/abis";
 import { DEPLOYED, STAKING } from "@/lib/config";
 import { countdown, fmt, toNum } from "@/lib/format";
-import { usePositions, useWallet, type Position } from "@/lib/useSnowball";
+import { useGlobalStats, usePositions, useWallet, type Position } from "@/lib/useSnowball";
 
 export default function MyPositions() {
   const config = useConfig();
   const { isConnected } = useAccount();
   const { positions, refetch } = usePositions();
+  const { rewardReserve } = useGlobalStats();
   const { refetch: refetchWallet } = useWallet();
   const { writeContractAsync } = useWriteContract();
   const [now, setNow] = useState(0);
@@ -58,7 +59,7 @@ export default function MyPositions() {
 
       <div className="pos">
         {[...live, ...done].map((p) => (
-          <Row key={p.id} p={p} now={now} busy={busy} onAct={act} />
+          <Row key={p.id} p={p} now={now} busy={busy} reserve={rewardReserve} onAct={act} />
         ))}
       </div>
     </section>
@@ -69,17 +70,22 @@ function Row({
   p,
   now,
   busy,
+  reserve,
   onAct,
 }: {
   p: Position;
   now: number;
   busy: string | null;
+  reserve: bigint;
   onAct: (k: "claim" | "withdraw", id: number) => void;
 }) {
   const end = Number(p.endTime);
   const matured = now > 0 && now >= end;
   const claimBusy = busy === `claim-${p.id}`;
   const wdBusy = busy === `withdraw-${p.id}`;
+  // 奖励池余额 < 待领:此时领取(或取回本金时的自动结算)只发得出池里剩的,差额会被合约视为已结、
+  // 不再补发。为保护用户,池不足时禁用"领取",并明确提示等注资。
+  const shortfall = !p.withdrawn && p.pending > 0n && p.pending > reserve;
 
   return (
     <div className="prow">
@@ -103,7 +109,7 @@ function Row({
       <div style={{ display: "flex", gap: 8 }}>
         <button
           className="mini-btn"
-          disabled={p.pending === 0n || claimBusy}
+          disabled={p.pending === 0n || claimBusy || shortfall}
           onClick={() => onAct("claim", p.id)}
         >
           {claimBusy ? "领取中…" : "领取奖励"}
@@ -118,6 +124,12 @@ function Row({
           </button>
         )}
       </div>
+
+      {shortfall && (
+        <div className="note warn" style={{ gridColumn: "1 / -1", marginTop: 0 }}>
+          奖励池余额不足(剩 {fmt(toNum(reserve), 2)}):现在领取只能拿到池内剩余、差额不再补发;取回本金也会按当前池余额结算奖励。建议等社区补充注资后再操作(本金不受影响)。
+        </div>
+      )}
     </div>
   );
 }

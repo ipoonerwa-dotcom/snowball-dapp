@@ -1,5 +1,6 @@
 import { SnowballEmblem } from "./Art";
 import WalletButton from "./WalletButton";
+import { REFERRAL_ENABLED } from "@/lib/config";
 
 export default function Header() {
   return (
@@ -11,6 +12,7 @@ export default function Header() {
       </div>
       <nav className="nav">
         <a href="#sign">签约</a>
+        {REFERRAL_ENABLED && <a href="#buy">买入</a>}
         <a href="#effect">雪球效应</a>
         <a href="#invite">邀请</a>
       </nav>

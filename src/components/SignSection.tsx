@@ -23,7 +23,7 @@ export default function SignSection() {
   const config = useConfig();
   const { address, isConnected, chainId } = useAccount();
   const { price } = usePrice();
-  const { stakingOpen } = useGlobalStats();
+  const { stakingOpen, rewardReserve } = useGlobalStats();
   const { balance, allowance, refetch: refetchWallet } = useWallet();
   const { refetch: refetchPositions } = usePositions();
   const { writeContractAsync } = useWriteContract();
@@ -193,6 +193,11 @@ export default function SignSection() {
             签约金额按当前价折成 USD 锁定奖励额度({stakeUsd ? fmtUsd(stakeUsd) : "—"});
             每晚 12:00 按 5 分钟均价折算入账,逐日累积随时可领;本金到期原数返还。
           </div>
+          {DEPLOYED && stakingOpen && rewardReserve === 0n && (
+            <div className="note warn">
+              提示:奖励池尚未注资。签约后奖励照常累积不丢失,但请等注资后再点"领取"(注资前领取拿不到、且该次差额不补发);本金随时按期返还,不受影响。
+            </div>
+          )}
           {msg && <div className={`note ${/成功|完成/.test(msg) ? "" : "warn"}`}>{msg}</div>}
         </div>
       </div>

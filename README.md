@@ -32,8 +32,9 @@ npm run dev
 | `NEXT_PUBLIC_CHAIN_ID` | 56(主网)/ 97(测试网) |
 | `NEXT_PUBLIC_RPC` | BSC RPC 节点 |
 | `NEXT_PUBLIC_TOKEN` | SNOWBALL 代币地址(已内置默认值) |
-| `NEXT_PUBLIC_STAKING` | 签约合约地址(**部署后必填**) |
-| `NEXT_PUBLIC_ORACLE` | TWAP 预言机地址(**部署后必填**) |
+| `NEXT_PUBLIC_STAKING` | 签约合约地址(已内置主网默认值) |
+| `NEXT_PUBLIC_ORACLE` | TWAP 预言机地址(已内置主网默认值) |
+| `NEXT_PUBLIC_BUY_ROUTER` | 买入/邀请 buy-router 地址(已内置主网默认值) |
 | `NEXT_PUBLIC_REWARD_POOL_TARGET` | 奖励池目标,仅用于进度展示(默认 40000) |
 | `NEXT_PUBLIC_WC_PROJECT_ID` | 可选。不填则只支持钱包内置浏览器 / 插件钱包 |
 

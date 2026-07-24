@@ -1,4 +1,4 @@
-import { CHAIN_ID, DEPLOYED, EXPLORER, ORACLE, STAKING, TOKEN } from "@/lib/config";
+import { BUY_ROUTER, CHAIN_ID, DEPLOYED, EXPLORER, ORACLE, REFERRAL_ENABLED, STAKING, TOKEN } from "@/lib/config";
 import { shortAddr } from "@/lib/format";
 
 export default function Footer() {
@@ -19,6 +19,14 @@ export default function Footer() {
             {" · 预言机 "}
             <a href={`${EXPLORER}/address/${ORACLE}`} target="_blank" rel="noreferrer">
               <code>{shortAddr(ORACLE)}</code>
+            </a>
+          </>
+        )}
+        {REFERRAL_ENABLED && (
+          <>
+            {" · 买入合约 "}
+            <a href={`${EXPLORER}/address/${BUY_ROUTER}`} target="_blank" rel="noreferrer">
+              <code>{shortAddr(BUY_ROUTER)}</code>
             </a>
           </>
         )}
