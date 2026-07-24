@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { isAddress } from "viem";
+import { formatUnits, isAddress } from "viem";
 import { useAccount, useReadContracts } from "wagmi";
 import { BUY_ROUTER_ABI } from "./abis";
 import { BUY_ROUTER, CHAIN_ID, REFERRAL_ENABLED, ZERO } from "./config";
@@ -53,27 +53,16 @@ export function useReferral(): ReferralState {
       { address: BUY_ROUTER, abi: BUY_ROUTER_ABI, functionName: "claimed", args: [a], chainId: CHAIN_ID },
       { address: BUY_ROUTER, abi: BUY_ROUTER_ABI, functionName: "referralPool", chainId: CHAIN_ID },
       { address: BUY_ROUTER, abi: BUY_ROUTER_ABI, functionName: "buyOpen", chainId: CHAIN_ID },
+      { address: BUY_ROUTER, abi: BUY_ROUTER_ABI, functionName: "teamUsd", args: [a], chainId: CHAIN_ID },
     ],
     query: { enabled: REFERRAL_ENABLED && !!address, refetchInterval: POLL },
   });
 
-  // 团队 U 业绩:后端索引器算好后由 /api/team/[address] 提供;未就绪则 null(前端显示"—")。
-  const [teamUsd, setTeamUsd] = useState<number | null>(null);
-  useEffect(() => {
-    if (!address || !REFERRAL_ENABLED) return;
-    let alive = true;
-    fetch(`/api/team/${address}`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => {
-        if (alive && d && typeof d.teamUsd === "number") setTeamUsd(d.teamUsd);
-      })
-      .catch(() => {});
-    return () => {
-      alive = false;
-    };
-  }, [address]);
-
   const referrer = (data?.[0]?.result as `0x${string}` | undefined) ?? ZERO;
+  const teamUsdWei = data?.[8]?.result as bigint | undefined;
+  // 团队 U 业绩由 keeper 算好后随 rank 一起推上链;这里直接读链上(未推过=0)。
+  const teamUsd = REFERRAL_ENABLED && address ? Number(formatUnits(teamUsdWei ?? 0n, 18)) : null;
+
   return {
     referrer,
     bound: referrer !== ZERO,
