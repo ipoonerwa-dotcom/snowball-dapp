@@ -31,7 +31,7 @@ export default function Footer() {
           </>
         )}
         {" · "}
-        {chainName} · Whale.fun 生态
+        {chainName} · 合约已开源
       </div>
       <div>
         奖励按 USD 价值每日结算,以链上 5 分钟均价为准;本金到期原数返还。加密资产价格波动,参与前请自行评估风险。

@@ -20,7 +20,6 @@ export default function Header() {
       <div className="brand">
         <SnowballEmblem size={35} />
         SNOWBALL
-        <span className="by"> · powered by Whale.fun</span>
       </div>
 
       {/* 桌面:内联导航 */}

@@ -4,9 +4,9 @@ import Providers from "@/components/Providers";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "SNOWBALL 签约 · Whale.fun 生态",
+  title: "SNOWBALL 签约",
   description:
-    "在 Whale.fun 生态里签约 SNOWBALL:奖励每日按 USD 价值结算,本金到期原数返还,链上透明、合约开源。",
+    "签约 SNOWBALL:奖励每日按 USD 价值结算,本金到期原数返还,链上透明、合约开源。",
 };
 
 export const viewport: Viewport = {

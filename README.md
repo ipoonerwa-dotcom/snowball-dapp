@@ -1,10 +1,10 @@
 # SNOWBALL 签约 DApp
 
-Whale.fun 生态 · Snowball 签约(固定期限 + 金本位奖励)前端。独立站,推 GitHub 后直接部署 Vercel。
+Snowball 签约(固定期限 + 金本位奖励)前端。独立站,推 GitHub 后直接部署 Vercel。
 
 - 技术栈:Next.js 16(App Router)+ React 19 + wagmi 3 / viem 2,纯 CSS(无 UI 框架)
 - 链:BSC 主网(56)
-- 风格:Whale.fun 青色族玻璃风(`#04070f` 底 + teal/cyan/sky/indigo 渐变)
+- 风格:青色族玻璃风(`#04070f` 底 + teal/cyan/sky/indigo 渐变)
 
 ## 机制(与合约一一对应)
 
