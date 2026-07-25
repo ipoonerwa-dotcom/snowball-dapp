@@ -141,8 +141,10 @@ h2 { font-size: clamp(22px, 3vw, 30px); font-weight: 800; margin: 10px 0 3px; }
 .cd { background: var(--glass); border: 1px solid var(--line); border-radius: 18px; padding: 20px; backdrop-filter: blur(10px); }
 .cd.pk { border-color: var(--line2); box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.15), 0 20px 46px rgba(4, 20, 40, 0.6); background: linear-gradient(180deg, rgba(56, 189, 248, 0.08), rgba(255, 255, 255, 0.03)); }
 .cd.sel { border-color: var(--teal); box-shadow: 0 0 0 1px rgba(94, 234, 212, 0.35), 0 20px 46px rgba(4, 20, 40, 0.6); }
-.cd.click { cursor: pointer; transition: transform 0.16s ease, border-color 0.16s ease; }
+.cd.click { cursor: pointer; transition: transform 0.16s ease, border-color 0.16s ease; -webkit-tap-highlight-color: transparent; }
 .cd.click:hover { transform: translateY(-2px); }
+/* 档位卡是 <button>:清掉浏览器默认按钮样式,继承玻璃卡外观 */
+button.cd { display: block; width: 100%; text-align: left; font: inherit; color: inherit; appearance: none; -webkit-appearance: none; }
 .tm { display: flex; align-items: baseline; justify-content: space-between; }
 .tm .d { font-size: 15px; color: var(--mut); font-weight: 700; }
 .apy { font-family: var(--mono); font-weight: 800; font-size: 38px; line-height: 1; background: linear-gradient(120deg, #5eead4, #38bdf8); -webkit-background-clip: text; background-clip: text; color: transparent; }

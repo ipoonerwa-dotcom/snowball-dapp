@@ -5,6 +5,7 @@ import { WagmiProvider, createConfig, http } from "wagmi";
 import { bsc, bscTestnet } from "wagmi/chains";
 import { injected, walletConnect } from "wagmi/connectors";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import AutoConnect from "./AutoConnect";
 import { CHAIN_ID, RPC_URL, WC_PROJECT_ID } from "@/lib/config";
 
 // 钱包内置浏览器(TP/OKX/币安/imToken)与插件钱包走 injected;配了 projectId 才额外挂 WalletConnect
@@ -29,7 +30,10 @@ export default function Providers({ children }: { children: ReactNode }) {
   );
   return (
     <WagmiProvider config={wagmiConfig}>
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      <QueryClientProvider client={queryClient}>
+        <AutoConnect />
+        {children}
+      </QueryClientProvider>
     </WagmiProvider>
   );
 }

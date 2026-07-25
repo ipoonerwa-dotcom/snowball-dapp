@@ -116,13 +116,11 @@ export default function SignSection() {
         {TERMS.map((t) => {
           const bars = t.days === 30 ? BARS_30 : BARS_60;
           return (
-            <div
+            <button
               key={t.days}
+              type="button"
               className={`cd click ${t.peak ? "pk" : ""} ${term === t.days ? "sel" : ""}`}
               onClick={() => setTerm(t.days)}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && setTerm(t.days)}
             >
               <div className="tm">
                 <span className="d">{t.label}</span>
@@ -146,7 +144,7 @@ export default function SignSection() {
                 <span>本金返还</span>
                 <b>第 {t.days} 天</b>
               </div>
-            </div>
+            </button>
           );
         })}
 

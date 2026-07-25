@@ -7,6 +7,12 @@
     "build": "next build",
     "start": "next start"
   },
+  "browserslist": [
+    "chrome >= 70",
+    "android >= 70",
+    "safari >= 13",
+    "ios_saf >= 13"
+  ],
   "dependencies": {
     "@tanstack/react-query": "^5.100.14",
     "next": "16.2.6",
