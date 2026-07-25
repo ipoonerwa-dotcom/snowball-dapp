@@ -1,6 +1,6 @@
 "use client";
 
-import { DEPLOYED, MAX_APR_PCT, REWARD_POOL_TARGET } from "@/lib/config";
+import { DEPLOYED, MAX_APR_PCT } from "@/lib/config";
 import { fmtCompact, fmtPrice, fmtUsd, toNum } from "@/lib/format";
 import { useGlobalStats, usePrice } from "@/lib/useSnowball";
 
@@ -23,11 +23,18 @@ export default function StatsRow() {
         <div className="k">签约总额</div>
         <div className="v">{DEPLOYED && p ? fmtUsd(principal * p) : dash}</div>
       </div>
+      <div className="st">
+        <div className="k">签约总代币量</div>
+        <div className="v">
+          {DEPLOYED ? fmtCompact(principal, 1) : dash}
+          <small> SNOWBALL</small>
+        </div>
+      </div>
       <div className="st hot">
         <div className="k">奖励池剩余</div>
         <div className="v">
-          {DEPLOYED ? fmtCompact(reserve, 0) : dash}
-          <small> / {fmtCompact(REWARD_POOL_TARGET, 0)}</small>
+          {DEPLOYED ? fmtCompact(reserve, 1) : dash}
+          <small> SNOWBALL</small>
         </div>
       </div>
       <div className="st">
