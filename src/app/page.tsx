@@ -26,10 +26,10 @@ export default function Home() {
         <section id="buy">
           <div className="eb">
             <i />
-            买入 · Buy
+            交易 · Trade
           </div>
-          <h2>买 SNOWBALL,邀请赚返佣</h2>
-          <p className="sub">通过 DApp 买入才计入邀请归因;把邀请链接发给好友,团队越大分成越高(5%–10%)。</p>
+          <h2>买卖 SNOWBALL,邀请赚返佣</h2>
+          <p className="sub">DApp 内一键买入 / 卖出;通过本 DApp 买入才计入邀请归因,把邀请链接发给好友,团队越大分成越高(5%–10%)。</p>
           <div style={{ maxWidth: 480 }}>
             <BuyWidget />
           </div>

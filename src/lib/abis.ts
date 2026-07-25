@@ -23,12 +23,24 @@ export const FEED_ABI = [
   { type: "function", name: "decimals", stateMutability: "view", inputs: [], outputs: [{ type: "uint8" }] },
 ] as const;
 
-/** PancakeSwap V2 路由(仅前端报价用) */
+/** PancakeSwap V2 路由(前端报价 + 卖出直连) */
 export const PANCAKE_ABI = [
   {
     type: "function", name: "getAmountsOut", stateMutability: "view",
     inputs: [{ name: "amountIn", type: "uint256" }, { name: "path", type: "address[]" }],
     outputs: [{ name: "amounts", type: "uint256[]" }],
+  },
+  {
+    // 卖出:SNOWBALL -> BNB(fee-on-transfer 安全版)。卖出无邀请归因,直连 Pancake 即可。
+    type: "function", name: "swapExactTokensForETHSupportingFeeOnTransferTokens", stateMutability: "nonpayable",
+    inputs: [
+      { name: "amountIn", type: "uint256" },
+      { name: "amountOutMin", type: "uint256" },
+      { name: "path", type: "address[]" },
+      { name: "to", type: "address" },
+      { name: "deadline", type: "uint256" },
+    ],
+    outputs: [],
   },
 ] as const;
 

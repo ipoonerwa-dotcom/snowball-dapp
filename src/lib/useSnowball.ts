@@ -2,7 +2,7 @@
 
 import { useAccount, useReadContract, useReadContracts } from "wagmi";
 import { ERC20_ABI, FEED_ABI, ORACLE_ABI, PAIR_ABI, STAKING_ABI } from "./abis";
-import { BNB_FEED, DEPLOYED, ORACLE, PAIR, STAKING, TOKEN, CHAIN_ID } from "./config";
+import { BNB_FEED, BUY_ROUTER, DEPLOYED, ORACLE, PAIR, STAKING, TOKEN, CHAIN_ID } from "./config";
 
 const POLL = 20_000;
 const PREC = 10n ** 18n;
@@ -44,7 +44,7 @@ export function usePrice() {
   return { price: settle, livePrice: livePrice > 0n ? livePrice : settle, isLoading };
 }
 
-/** 全局数据卡:奖励池剩余 / 签约总额 / 是否开放 */
+/** 全局数据卡:签约奖励池 / 推荐奖励池 / 签约总额 / 是否开放 */
 export function useGlobalStats() {
   const { data } = useReadContracts({
     contracts: [
@@ -53,17 +53,22 @@ export function useGlobalStats() {
       { address: STAKING, abi: STAKING_ABI, functionName: "stakingOpen", chainId: CHAIN_ID },
       { address: STAKING, abi: STAKING_ABI, functionName: "currentDayIdx", chainId: CHAIN_ID },
       { address: TOKEN, abi: ERC20_ABI, functionName: "balanceOf", args: [STAKING], chainId: CHAIN_ID },
+      { address: TOKEN, abi: ERC20_ABI, functionName: "balanceOf", args: [BUY_ROUTER], chainId: CHAIN_ID },
     ],
     query: { enabled: DEPLOYED, refetchInterval: POLL },
   });
   const bookedReserve = (data?.[0]?.result as bigint | undefined) ?? 0n;
   const totalPrincipal = (data?.[1]?.result as bigint | undefined) ?? 0n;
   const bal = data?.[4]?.result as bigint | undefined;
-  // 有效奖励池 = 合约实际余额 - 本金:社区直接转账进来的币立刻计入(合约领取时会自动 sync 入账,
+  // 有效签约奖励池 = 合约实际余额 - 本金:社区直接转账进来的币立刻计入(合约领取时会自动 sync 入账,
   // 所以这个口径 = 真正能领到的量;bookedReserve 只是尚未 sync 的账面值,可能滞后)。
   const effective = bal !== undefined && bal > totalPrincipal ? bal - totalPrincipal : bookedReserve;
+  // 推荐奖励池 = 买入合约的 SNOWBALL 余额:买到的币直发买家不经手,合约里的 SNOWBALL 只有返佣池,
+  // 所以余额恒等于 referralPool(直接转账也立刻反映)。
+  const referralPool = (data?.[5]?.result as bigint | undefined) ?? 0n;
   return {
     rewardReserve: effective > bookedReserve ? effective : bookedReserve,
+    referralPool,
     totalPrincipal,
     stakingOpen: (data?.[2]?.result as boolean | undefined) ?? false,
     dayIdx: (data?.[3]?.result as bigint | undefined) ?? 0n,

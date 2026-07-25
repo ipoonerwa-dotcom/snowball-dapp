@@ -6,11 +6,12 @@ import { useGlobalStats, usePrice } from "@/lib/useSnowball";
 
 export default function StatsRow() {
   const { livePrice } = usePrice();
-  const { rewardReserve, totalPrincipal } = useGlobalStats();
+  const { rewardReserve, referralPool, totalPrincipal } = useGlobalStats();
 
   const p = toNum(livePrice);
   const principal = toNum(totalPrincipal);
   const reserve = toNum(rewardReserve);
+  const refPool = toNum(referralPool);
   const dash = "—";
 
   return (
@@ -31,9 +32,16 @@ export default function StatsRow() {
         </div>
       </div>
       <div className="st hot">
-        <div className="k">奖励池剩余</div>
+        <div className="k">签约奖励</div>
         <div className="v">
           {DEPLOYED ? fmtCompact(reserve, 1) : dash}
+          <small> SNOWBALL</small>
+        </div>
+      </div>
+      <div className="st hot">
+        <div className="k">推荐奖励池</div>
+        <div className="v">
+          {DEPLOYED ? fmtCompact(refPool, 1) : dash}
           <small> SNOWBALL</small>
         </div>
       </div>
