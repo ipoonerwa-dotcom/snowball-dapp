@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAccount, useConfig, useWriteContract } from "wagmi";
 import { waitForTransactionReceipt } from "wagmi/actions";
 import { NetworkOrb } from "./Art";
 import { BUY_ROUTER_ABI } from "@/lib/abis";
+import { copyText } from "@/lib/clipboard";
 import { BUY_ROUTER, REFERRAL_ENABLED, TIERS } from "@/lib/config";
 import { fmt, fmtUsd, toNum } from "@/lib/format";
 import { useReferral } from "@/lib/useReferral";
@@ -16,20 +17,47 @@ export default function ReferralSection() {
   const { writeContractAsync } = useWriteContract();
 
   const [inviteLink, setInviteLink] = useState("");
-  const [copied, setCopied] = useState(false);
+  const [copyState, setCopyState] = useState<"idle" | "ok" | "manual">("idle");
+  const [canShare, setCanShare] = useState(false);
   const [claiming, setClaiming] = useState(false);
   const [msg, setMsg] = useState("");
+  const linkInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (address) setInviteLink(`${window.location.origin}/?ref=${address}`);
   }, [address]);
 
-  function copy() {
+  useEffect(() => {
+    setCanShare(typeof navigator !== "undefined" && typeof navigator.share === "function");
+  }, []);
+
+  async function share() {
     if (!inviteLink) return;
-    navigator.clipboard?.writeText(inviteLink).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    });
+    try {
+      await navigator.share({ title: "SNOWBALL 签约", text: "一起签约 SNOWBALL,雪球越滚越大 ❄️", url: inviteLink });
+    } catch {
+      /* 用户取消或不支持:回退到复制 */
+      copy();
+    }
+  }
+
+  async function copy() {
+    if (!inviteLink) return;
+    const ok = await copyText(inviteLink);
+    if (ok) {
+      setCopyState("ok");
+      setTimeout(() => setCopyState("idle"), 1500);
+    } else {
+      // 钱包 WebView 禁了剪贴板:选中链接,提示用户长按复制
+      const el = linkInputRef.current;
+      if (el) {
+        el.focus();
+        el.select();
+        el.setSelectionRange(0, inviteLink.length);
+      }
+      setCopyState("manual");
+      setTimeout(() => setCopyState("idle"), 4000);
+    }
   }
 
   async function claim() {
@@ -66,10 +94,30 @@ export default function ReferralSection() {
 
           {/* 邀请链接 */}
           {REFERRAL_ENABLED && isConnected && (
-            <div className="fld" style={{ marginTop: 14 }}>
-              <input readOnly value={inviteLink} style={{ fontSize: 12.5 }} />
-              <span className="max" onClick={copy}>{copied ? "已复制" : "复制"}</span>
-            </div>
+            <>
+              <div className="fld" style={{ marginTop: 14 }}>
+                <input
+                  ref={linkInputRef}
+                  readOnly
+                  value={inviteLink}
+                  style={{ fontSize: 12.5 }}
+                  onFocus={(e) => e.currentTarget.select()}
+                />
+                <span className="max" onClick={copy}>
+                  {copyState === "ok" ? "已复制" : "复制"}
+                </span>
+                {canShare && (
+                  <span className="max" onClick={share} style={{ marginLeft: 6 }}>
+                    分享
+                  </span>
+                )}
+              </div>
+              {copyState === "manual" && (
+                <div className="note warn" style={{ marginTop: 8 }}>
+                  当前钱包浏览器不支持一键复制,已为你选中链接,请<b>长按上方链接 → 复制</b>,或直接分享本页给好友。
+                </div>
+              )}
+            </>
           )}
 
           {/* 等级阶梯 */}
