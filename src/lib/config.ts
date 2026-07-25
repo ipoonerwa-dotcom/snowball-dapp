@@ -26,6 +26,10 @@ export const REFERRAL_ENABLED = BUY_ROUTER !== ZERO;
 export const PANCAKE_ROUTER = "0x10ED43C718714eb63d5aA57B78B54704E256024E" as const;
 export const WBNB = "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c" as const;
 
+/** SNOWBALL/WBNB 底池 + Chainlink BNB/USD:前端算"实时市场价"用(SNOW = token0) */
+export const PAIR = "0x428D3Effb5Cc4F8B9494d44CC0f91D97804dfcD5" as const;
+export const BNB_FEED = "0x0567F2323251f0Aab15c8dFb1967E4e8A7D42aeE" as const;
+
 /** 团队等级(雪球系),与合约 rateBps[0..5]=5%..10% 一一对应 */
 export const TIERS = [
   { name: "雪花", rate: 5 },

@@ -5,10 +5,10 @@ import { fmtCompact, fmtPrice, fmtUsd, toNum } from "@/lib/format";
 import { useGlobalStats, usePrice } from "@/lib/useSnowball";
 
 export default function StatsRow() {
-  const { price } = usePrice();
+  const { livePrice } = usePrice();
   const { rewardReserve, totalPrincipal } = useGlobalStats();
 
-  const p = toNum(price);
+  const p = toNum(livePrice);
   const principal = toNum(totalPrincipal);
   const reserve = toNum(rewardReserve);
   const dash = "—";

@@ -11,6 +11,18 @@ export const ORACLE_ABI = [
   { type: "function", name: "lastUsdPrice", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
 ] as const;
 
+/** UniV2 底池(算实时价:储备比 × BNB/USD) */
+export const PAIR_ABI = [
+  { type: "function", name: "getReserves", stateMutability: "view", inputs: [], outputs: [{ type: "uint112" }, { type: "uint112" }, { type: "uint32" }] },
+  { type: "function", name: "token0", stateMutability: "view", inputs: [], outputs: [{ type: "address" }] },
+] as const;
+
+/** Chainlink 价格源(BNB/USD) */
+export const FEED_ABI = [
+  { type: "function", name: "latestRoundData", stateMutability: "view", inputs: [], outputs: [{ type: "uint80" }, { type: "int256" }, { type: "uint256" }, { type: "uint256" }, { type: "uint80" }] },
+  { type: "function", name: "decimals", stateMutability: "view", inputs: [], outputs: [{ type: "uint8" }] },
+] as const;
+
 /** PancakeSwap V2 路由(仅前端报价用) */
 export const PANCAKE_ABI = [
   {

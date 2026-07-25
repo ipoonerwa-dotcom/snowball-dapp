@@ -23,7 +23,7 @@ export default function BuyWidget() {
   const config = useConfig();
   const { address, isConnected, chainId } = useAccount();
   const { data: bnb } = useBalance({ address, chainId: CHAIN_ID, query: { enabled: !!address } });
-  const { price } = usePrice();
+  const { livePrice } = usePrice();
   const { buyOpen, refetch } = useReferral();
   const urlRef = useUrlRef();
   const { writeContractAsync } = useWriteContract();
@@ -78,7 +78,7 @@ export default function BuyWidget() {
     }
   }
 
-  const p = toNum(price);
+  const p = toNum(livePrice);
   const estUsd = toNum(estOut) * p;
 
   const label = !REFERRAL_ENABLED

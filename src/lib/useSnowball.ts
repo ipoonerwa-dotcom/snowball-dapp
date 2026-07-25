@@ -1,21 +1,47 @@
 "use client";
 
 import { useAccount, useReadContract, useReadContracts } from "wagmi";
-import { ERC20_ABI, ORACLE_ABI, STAKING_ABI } from "./abis";
-import { DEPLOYED, ORACLE, STAKING, TOKEN, CHAIN_ID } from "./config";
+import { ERC20_ABI, FEED_ABI, ORACLE_ABI, PAIR_ABI, STAKING_ABI } from "./abis";
+import { BNB_FEED, DEPLOYED, ORACLE, PAIR, STAKING, TOKEN, CHAIN_ID } from "./config";
 
 const POLL = 20_000;
+const PREC = 10n ** 18n;
 
-/** SNOWBALL/USD(1e18)。预言机每日 poke 结算,读的是最近一次settled价 */
+/**
+ * 两种 SNOWBALL/USD(都是 1e18):
+ *  - price(结算价):预言机每日 poke 定格的 5 分钟均价 —— 合约签约入场/返佣折币用的就是它(防操纵)。
+ *  - livePrice(实时价):底池储备比 × Chainlink BNB/USD —— 行情展示用,随市场实时动。
+ */
 export function usePrice() {
-  const { data, isLoading } = useReadContract({
-    address: ORACLE,
-    abi: ORACLE_ABI,
-    functionName: "snowballUsdPrice",
-    chainId: CHAIN_ID,
+  const { data, isLoading } = useReadContracts({
+    contracts: [
+      { address: ORACLE, abi: ORACLE_ABI, functionName: "snowballUsdPrice", chainId: CHAIN_ID },
+      { address: PAIR, abi: PAIR_ABI, functionName: "getReserves", chainId: CHAIN_ID },
+      { address: PAIR, abi: PAIR_ABI, functionName: "token0", chainId: CHAIN_ID },
+      { address: BNB_FEED, abi: FEED_ABI, functionName: "latestRoundData", chainId: CHAIN_ID },
+      { address: BNB_FEED, abi: FEED_ABI, functionName: "decimals", chainId: CHAIN_ID },
+    ],
     query: { enabled: DEPLOYED, refetchInterval: POLL },
   });
-  return { price: (data as bigint | undefined) ?? 0n, isLoading };
+
+  const settle = (data?.[0]?.result as bigint | undefined) ?? 0n;
+
+  let livePrice = 0n;
+  const reserves = data?.[1]?.result as readonly [bigint, bigint, bigint] | undefined;
+  const token0 = data?.[2]?.result as `0x${string}` | undefined;
+  const round = data?.[3]?.result as readonly [bigint, bigint, bigint, bigint, bigint] | undefined;
+  const feedDec = data?.[4]?.result as number | undefined;
+  if (reserves && token0 && round && feedDec !== undefined && round[1] > 0n) {
+    const snowIs0 = token0.toLowerCase() === TOKEN.toLowerCase();
+    const rSnow = snowIs0 ? reserves[0] : reserves[1];
+    const rWbnb = snowIs0 ? reserves[1] : reserves[0];
+    if (rSnow > 0n) {
+      const wbnbPerSnow = (rWbnb * PREC) / rSnow; // 1e18
+      livePrice = (wbnbPerSnow * round[1]) / 10n ** BigInt(feedDec);
+    }
+  }
+
+  return { price: settle, livePrice: livePrice > 0n ? livePrice : settle, isLoading };
 }
 
 /** 全局数据卡:奖励池剩余 / 签约总额 / 是否开放 */

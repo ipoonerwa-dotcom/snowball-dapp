@@ -190,8 +190,8 @@ export default function SignSection() {
           </button>
 
           <div className="note">
-            签约金额按当前价折成 USD 锁定奖励额度({stakeUsd ? fmtUsd(stakeUsd) : "—"});
-            每晚 12:00 按 5 分钟均价折算入账,逐日累积随时可领;本金到期原数返还。
+            签约金额按<b>链上结算价</b>折成 USD 锁定奖励额度({stakeUsd ? fmtUsd(stakeUsd) : "—"});
+            结算价 = 每日 00:00 定格的 5 分钟均价(与实时行情略有差异,防操纵)。奖励逐日累积随时可领;本金到期原数返还。
           </div>
           {DEPLOYED && stakingOpen && rewardReserve === 0n && (
             <div className="note warn">
