@@ -24,7 +24,9 @@ export default function MyPositions() {
     return () => clearInterval(t);
   }, []);
 
-  if (!DEPLOYED || !isConnected || positions.length === 0) return null;
+  // 只要连了钱包就显示本板块(哪怕还没签约),让"领取/取回"入口始终可被发现;
+  // 没签约时给一句引导,避免用户以为"没有领取按钮"。
+  if (!DEPLOYED || !isConnected) return null;
 
   async function act(kind: "claim" | "withdraw", id: number) {
     setBusy(`${kind}-${id}`);
@@ -57,11 +59,20 @@ export default function MyPositions() {
       <h2>雪球正在滚动</h2>
       <p className="sub">奖励逐日累积、随时可领;本金到期后原数取回。</p>
 
-      <div className="pos">
-        {[...live, ...done].map((p) => (
-          <Row key={p.id} p={p} now={now} busy={busy} reserve={rewardReserve} onAct={act} />
-        ))}
-      </div>
+      {positions.length === 0 ? (
+        <div className="prow">
+          <div className="note" style={{ gridColumn: "1 / -1", margin: 0 }}>
+            你还没有签约。在上方「签约计划」选择期限并签约后,你的仓位会显示在这里,可随时
+            <b>领取每日奖励</b>、到期<b>取回本金</b>。
+          </div>
+        </div>
+      ) : (
+        <div className="pos">
+          {[...live, ...done].map((p) => (
+            <Row key={p.id} p={p} now={now} busy={busy} reserve={rewardReserve} onAct={act} />
+          ))}
+        </div>
+      )}
     </section>
   );
 }
