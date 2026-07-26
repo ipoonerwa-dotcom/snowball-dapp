@@ -51,9 +51,12 @@ export default function MyPositions() {
   const live = positions.filter((p) => !p.withdrawn);
   const done = positions.filter((p) => p.withdrawn);
 
-  // 池子必须盖得住【全体待领】才放行领取:合约先到先得、发完即止,
-  // 池子不足时谁先点谁拿满、后点的被截断且差额永久作废。数据没读齐时按不足处理(保守)。
-  const poolCovers = totalReady && rewardReserve >= totalPending;
+  // 两道闸,任一不满足就禁用领取(合约先到先得、发完即止,差额永久作废):
+  //   闸1 我这一单 > 池子       —— 精确、始终有效
+  //   闸2 全体待领 > 池子       —— 防多人抢领;名单来自买入合约,可能少算,
+  //                                所以只作为【额外】一道,数据没读齐时不参与判断,
+  //                                避免 RPC 抖动误伤用户。
+  const totalShort = totalReady && totalPending > rewardReserve;
   const anyPending = live.some((p) => p.pending > 0n);
 
   return (
@@ -65,19 +68,19 @@ export default function MyPositions() {
       <h2>雪球正在滚动</h2>
       <p className="sub">奖励逐日累积、随时可领;本金到期后原数取回。</p>
 
-      {/* 奖励池覆盖状态:必须盖住全体待领才允许领取 */}
+      {/* 奖励池状态 */}
       {positions.length > 0 && (
-        <div className={`poolbar ${poolCovers ? "ok" : "short"}`}>
+        <div className={`poolbar ${totalShort ? "short" : "ok"}`}>
           <span>
             奖励池 <b>{fmt(toNum(rewardReserve), 2)}</b> SNOWBALL
             {totalReady && <> · 全体待领 <b>{fmt(toNum(totalPending), 2)}</b></>}
           </span>
           <span className="tag">
-            {!totalReady ? "核对中…" : poolCovers ? "✓ 池子充足,可正常领取" : "⚠ 池子不足,领取已暂停"}
+            {!totalReady ? "核对中…" : totalShort ? "⚠ 池子不足,领取已暂停" : "✓ 池子充足,可正常领取"}
           </span>
         </div>
       )}
-      {totalReady && !poolCovers && anyPending && (
+      {totalShort && anyPending && (
         <div className="note warn">
           <b>领取已暂停</b>:奖励池({fmt(toNum(rewardReserve), 2)})不足以覆盖全体待领
           ({fmt(toNum(totalPending), 2)})。合约是先到先得、发完即止 —— 此时领取,先点的人拿满、
@@ -97,7 +100,7 @@ export default function MyPositions() {
       ) : (
         <div className="pos">
           {[...live, ...done].map((p) => (
-            <Row key={p.id} p={p} now={now} busy={busy} poolCovers={poolCovers} onAct={act} />
+            <Row key={p.id} p={p} now={now} busy={busy} reserve={rewardReserve} totalShort={totalShort} onAct={act} />
           ))}
         </div>
       )}
@@ -109,21 +112,25 @@ function Row({
   p,
   now,
   busy,
-  poolCovers,
+  reserve,
+  totalShort,
   onAct,
 }: {
   p: Position;
   now: number;
   busy: string | null;
-  poolCovers: boolean;
+  reserve: bigint;
+  totalShort: boolean;
   onAct: (k: "claim" | "withdraw", id: number) => void;
 }) {
   const end = Number(p.endTime);
   const matured = now > 0 && now >= end;
   const claimBusy = busy === `claim-${p.id}`;
   const wdBusy = busy === `withdraw-${p.id}`;
-  // 池子必须盖得住【全体待领】才放行:合约先到先得、发完即止,池子不足时后领的人差额永久作废。
-  const blocked = !p.withdrawn && p.pending > 0n && !poolCovers;
+  // 闸1(精确):我这一单就超过池子 —— 无论名单是否完整都成立
+  const myShort = !p.withdrawn && p.pending > 0n && p.pending > reserve;
+  // 闸2(额外):全体待领超过池子 —— 防多人抢领
+  const blocked = !p.withdrawn && p.pending > 0n && (myShort || totalShort);
 
   return (
     <div className="prow">
@@ -165,6 +172,12 @@ function Row({
         )}
       </div>
 
+      {myShort && (
+        <div className="note warn" style={{ gridColumn: "1 / -1", marginTop: 0 }}>
+          你这一单待领({fmt(toNum(p.pending), 4)})已超过奖励池余额({fmt(toNum(reserve), 2)}),
+          现在领取只能拿到池内剩余、<b>差额永久作废</b>。等社区补币后再领,一分不少。
+        </div>
+      )}
       {blocked && matured && (
         <div className="note warn" style={{ gridColumn: "1 / -1", marginTop: 0 }}>
           ⚠ 本金已到期可取,但<b>取回本金会同时结算奖励</b> —— 当前奖励池不足,这部分差额会永久作废。
