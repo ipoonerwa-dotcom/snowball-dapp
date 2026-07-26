@@ -41,6 +41,12 @@ export const RECORDER_ABI = [
       { name: "heldNow", type: "uint256[]" },
     ],
   },
+  {
+    type: "function", name: "getUsers", stateMutability: "view",
+    inputs: [{ name: "offset", type: "uint256" }, { name: "limit", type: "uint256" }],
+    outputs: [{ type: "address[]" }],
+  },
   { type: "function", name: "totalUsdOf", stateMutability: "view", inputs: [{ type: "address" }], outputs: [{ type: "uint256" }] },
+  { type: "function", name: "totalTokensOf", stateMutability: "view", inputs: [{ type: "address" }], outputs: [{ type: "uint256" }] },
   { type: "function", name: "firstSeen", stateMutability: "view", inputs: [{ type: "address" }], outputs: [{ type: "uint64" }] },
 ] as const;

@@ -49,6 +49,27 @@ const ZERO = "0x0000000000000000000000000000000000000000";
 const dayKey = (ts: number) => new Date(ts * 1000).toLocaleDateString("sv-SE"); // YYYY-MM-DD
 const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
 
+/** 地址单元格:点一下复制完整地址,右边小箭头去 BscScan */
+function Addr({ a }: { a: string }) {
+  const [ok, setOk] = useState(false);
+  return (
+    <span className="addr">
+      <code
+        title={`点击复制 ${a}`}
+        onClick={async () => {
+          if (await copyText(a)) {
+            setOk(true);
+            setTimeout(() => setOk(false), 1200);
+          }
+        }}
+      >
+        {ok ? "已复制 ✓" : short(a)}
+      </code>
+      <a href={`https://bscscan.com/address/${a}`} target="_blank" rel="noreferrer" title="在 BscScan 查看">↗</a>
+    </span>
+  );
+}
+
 /** 已发放台账(浏览器本地保存,可导出备份) */
 const PAID_KEY = "snowball-paid-usd-v1";
 
@@ -75,6 +96,9 @@ export default function AdminReport() {
   const [excludeDumped, setExcludeDumped] = useState(false);
   const [minUsd, setMinUsd] = useState("0");
   const [copied, setCopied] = useState("");
+  const [graph, setGraph] = useState<{ user: string; referrer: string }[]>([]);
+  const [q, setQ] = useState("");        // 查询输入框
+  const [queried, setQueried] = useState(""); // 已提交查询的地址
 
   // 访问控制已在服务端完成(/admin 页面校验 httpOnly 登录 Cookie 后才渲染本组件),
   // 这里不再重复要求连钱包 —— 后台只是读链上公开数据,连钱包对对账没有意义。
@@ -146,6 +170,27 @@ export default function AdminReport() {
         } catch { tmap[r.toLowerCase()] = { name: TIERS[0].name, bps: 500 }; }
       }));
       setTiers(tmap);
+
+      // 完整邀请树(含只绑定没买过的人)—— 查询功能要靠它算直推/团队
+      const un = Number((await client.readContract({
+        address: BUY_ROUTER, abi: RECORDER_ABI, functionName: "usersLength",
+      })) as bigint);
+      const allUsers: `0x${string}`[] = [];
+      for (let off = 0; off < un; off += 200) {
+        const page = (await client.readContract({
+          address: BUY_ROUTER, abi: RECORDER_ABI, functionName: "getUsers", args: [BigInt(off), 200n],
+        })) as readonly `0x${string}`[];
+        allUsers.push(...page);
+      }
+      const g: { user: string; referrer: string }[] = [];
+      for (let i = 0; i < allUsers.length; i += 100) {
+        const slice = allUsers.slice(i, i + 100);
+        const [refsArr] = (await client.readContract({
+          address: BUY_ROUTER, abi: RECORDER_ABI, functionName: "buyerSnapshots", args: [slice],
+        })) as [readonly `0x${string}`[], readonly bigint[], readonly bigint[], readonly bigint[]];
+        slice.forEach((u, k) => g.push({ user: u.toLowerCase(), referrer: refsArr[k].toLowerCase() }));
+      }
+      setGraph(g);
     } catch (e) {
       setErr((e as Error)?.message?.slice(0, 160) || "读取失败");
     } finally {
@@ -187,10 +232,12 @@ export default function AdminReport() {
     fr.readAsText(file);
   }
 
-  const days = useMemo(() => {
-    const s = new Set(rows.map((r) => dayKey(r.time)));
-    return ["ALL", ...[...s].sort().reverse()];
-  }, [rows]);
+  /** 有买入记录的日期(倒序),给日历旁边做提示 + 一键跳最近一天 */
+  const daysWithData = useMemo(
+    () => [...new Set(rows.map((r) => dayKey(r.time)))].sort().reverse(),
+    [rows],
+  );
+  const todayKey = dayKey(Math.floor(Date.now() / 1000));
 
   /**
    * 每个买家的「有效业绩」——两条规则都在这里:
@@ -229,6 +276,65 @@ export default function AdminReport() {
     }
     return m;
   }, [rows, info]);
+
+  /** 邀请树:上级 → 直推列表 */
+  const childrenOf = useMemo(() => {
+    const m = new Map<string, string[]>();
+    for (const { user, referrer } of graph) {
+      if (!referrer || referrer === ZERO) continue;
+      if (!m.has(referrer)) m.set(referrer, []);
+      m.get(referrer)!.push(user);
+    }
+    return m;
+  }, [graph]);
+
+  /**
+   * 查询某个地址的:等级 / 直推人数 / 直推业绩 / 团队业绩。
+   * 业绩一律用【有效业绩】(卖出已折算),与发放清单同口径。
+   * 环保护:合约不禁互绑(A↔B),遇到祖先整个跳过,否则自己的买入会被算进自己的团队业绩。
+   */
+  const queryResult = useMemo(() => {
+    const a = queried.toLowerCase();
+    if (!/^0x[0-9a-f]{40}$/.test(a)) return null;
+
+    const kids = childrenOf.get(a) ?? [];
+    const q = (u: string) => perBuyer[u]?.qualifiedUsd ?? 0;
+
+    const directUsd = kids.reduce((s, k) => s + q(k), 0);
+
+    const inProg = new Set<string>();
+    const sub = (u: string): number => {
+      if (inProg.has(u)) return 0;
+      inProg.add(u);
+      let s = 0;
+      for (const c of childrenOf.get(u) ?? []) {
+        if (inProg.has(c)) continue; // 环:跳过祖先
+        s += q(c) + sub(c);
+      }
+      inProg.delete(u);
+      return s;
+    };
+    const teamUsd = sub(a);
+
+    const self = perBuyer[a];
+    const t = tiers[a];
+    const known = graph.some((g) => g.user === a || g.referrer === a);
+
+    return {
+      addr: a,
+      known,
+      tierName: t?.name ?? TIERS[0].name,
+      rateBps: t?.bps ?? 500,
+      upline: graph.find((g) => g.user === a)?.referrer ?? ZERO,
+      directCount: kids.length,
+      directUsd,
+      teamUsd,
+      selfBought: self?.boughtUsd ?? 0,
+      selfQualified: self?.qualifiedUsd ?? 0,
+      retainPct: (self?.retainRatio ?? 0) * 100,
+      kids,
+    };
+  }, [queried, childrenOf, perBuyer, tiers, graph]);
 
   /** 逐笔明细(用于人工核对,按日期筛选) */
   const detail = useMemo(() => {
@@ -348,10 +454,23 @@ export default function AdminReport() {
       {/* 筛选 */}
       <div className="adm-bar">
         <label>日期
-          <select value={day} onChange={(e) => setDay(e.target.value)}>
-            {days.map((d) => <option key={d} value={d}>{d === "ALL" ? "全部" : d}</option>)}
-          </select>
+          {/* 原生日历选择器,可精确到某一天;dayKey 用 sv-SE 输出 YYYY-MM-DD,与 input[type=date] 同格式 */}
+          <input
+            type="date"
+            value={day === "ALL" ? "" : day}
+            max={todayKey}
+            onChange={(e) => setDay(e.target.value || "ALL")}
+          />
+          {day === "ALL"
+            ? <span className="hint">全部日期</span>
+            : <button className="mini-btn ghost" onClick={() => setDay("ALL")}>看全部</button>}
         </label>
+        {daysWithData.length > 0 && (
+          <span className="hint" title={daysWithData.join("  ")}>
+            有记录的日期:{daysWithData.length} 天
+            {daysWithData[0] && <> (最近 <b onClick={() => setDay(daysWithData[0])} className="lnk">{daysWithData[0]}</b>)</>}
+          </span>
+        )}
         <label>最小买入(USD)
           <input type="number" min="0" value={minUsd} onChange={(e) => setMinUsd(e.target.value)} style={{ width: 80 }} />
         </label>
@@ -370,6 +489,65 @@ export default function AdminReport() {
         <div className="st"><div className="k">有效团队业绩</div><div className="v">{fmtUsd(totals.qualified)}</div></div>
         <div className="st"><div className="k">累计应发 / 已发</div><div className="v" style={{ fontSize: 17 }}>{fmtUsd(totals.entitled)}<small> / {fmtUsd(totals.paid)}</small></div></div>
       </div>
+
+      {/* 地址查询 */}
+      <h3 style={{ marginTop: 26 }}>⌕ 地址查询</h3>
+      <div className="adm-bar">
+        <input
+          className="qbox"
+          placeholder="粘贴钱包地址 0x…"
+          value={q}
+          onChange={(e) => setQ(e.target.value.trim())}
+          onKeyDown={(e) => e.key === "Enter" && setQueried(q)}
+        />
+        <button className="mini-btn" onClick={() => setQueried(q)} disabled={!/^0x[0-9a-fA-F]{40}$/.test(q)}>查询</button>
+        {queried && <button className="mini-btn ghost" onClick={() => { setQ(""); setQueried(""); }}>清空</button>}
+      </div>
+
+      {queried && !queryResult && <div className="note warn">地址格式不正确,请粘贴完整的 0x 开头 42 位地址。</div>}
+      {queryResult && (
+        <>
+          {!queryResult.known && (
+            <div className="note warn">该地址不在邀请体系内(没绑过上级、也没人绑他)。下面数值均为 0。</div>
+          )}
+          <div className="stats" style={{ marginTop: 12 }}>
+            <div className="st"><div className="k">等级</div>
+              <div className="v" style={{ fontSize: 19 }}>{queryResult.tierName}<small> {(queryResult.rateBps / 100).toFixed(1)}%</small></div></div>
+            <div className="st"><div className="k">直推人数</div><div className="v">{queryResult.directCount}</div></div>
+            <div className="st"><div className="k">直推业绩</div><div className="v">{fmtUsd(queryResult.directUsd)}</div></div>
+            <div className="st hot"><div className="k">团队业绩</div><div className="v">{fmtUsd(queryResult.teamUsd)}</div></div>
+            <div className="st"><div className="k">本人买入 / 有效</div>
+              <div className="v" style={{ fontSize: 17 }}>{fmtUsd(queryResult.selfBought)}<small> / {fmtUsd(queryResult.selfQualified)}</small></div></div>
+          </div>
+          <div className="note">
+            上级:{queryResult.upline === ZERO ? "无(顶级)" : <Addr a={queryResult.upline} />}
+            {" · "}本人留存 {queryResult.retainPct.toFixed(0)}%
+            {" · "}业绩均为<b>有效口径</b>(下线卖出部分已按留存比例折算扣除),与发放清单一致。
+          </div>
+          {queryResult.kids.length > 0 && (
+            <div className="tbl-wrap" style={{ marginTop: 10 }}>
+              <table className="adm-tbl">
+                <thead><tr><th>直推下线</th><th>累计买入</th><th>有效业绩</th><th>留存</th><th>他的下线数</th></tr></thead>
+                <tbody>
+                  {queryResult.kids.map((k) => {
+                    const e = perBuyer[k];
+                    const pct = (e?.retainRatio ?? 0) * 100;
+                    return (
+                      <tr key={k}>
+                        <td><Addr a={k} /></td>
+                        <td>{fmtUsd(e?.boughtUsd ?? 0)}</td>
+                        <td>{fmtUsd(e?.qualifiedUsd ?? 0)}</td>
+                        <td className={pct < 10 ? "bad" : "good"}>{pct.toFixed(0)}%</td>
+                        <td>{(childrenOf.get(k) ?? []).length}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
+      )}
 
       {/* 发放清单 */}
       <h3 style={{ marginTop: 26 }}>① 发放清单(按推荐人 · 累计口径)</h3>
@@ -397,7 +575,7 @@ export default function AdminReport() {
           <tbody>
             {payout.map((p) => (
               <tr key={p.referrer} className={p.dueUsd > 0 ? "" : "muted"}>
-                <td><code title={p.referrer}>{short(p.referrer)}</code></td>
+                <td><Addr a={p.referrer} /></td>
                 <td>{p.tierName}</td>
                 <td>{fmtUsd(p.qualifiedUsd)}</td>
                 <td>{(p.rate * 100).toFixed(1)}%</td>
@@ -433,14 +611,14 @@ export default function AdminReport() {
             {detail.map((d) => (
               <tr key={d.id} className={d.counted ? "" : "muted"}>
                 <td>{new Date(d.time * 1000).toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}</td>
-                <td><code title={d.buyer}>{short(d.buyer)}</code></td>
+                <td><Addr a={d.buyer} /></td>
                 <td>{fmt(Number(formatEther(d.bnbIn)), 4)} BNB</td>
                 <td>{fmtUsd(Number(formatUnits(d.usd, 18)))}</td>
                 <td>{fmt(Number(formatUnits(d.tokens, 18)), 2)}</td>
                 <td>{fmt(Number(formatUnits(d.held, 18)), 2)}</td>
                 <td>{d.staked > 0n ? <b className="hi">{fmt(Number(formatUnits(d.staked, 18)), 2)}</b> : "—"}</td>
                 <td className={d.dumped ? "bad" : "good"}>{d.keepPct.toFixed(0)}%</td>
-                <td>{d.noRef ? <span className="muted">无</span> : <code title={d.referrer}>{short(d.referrer)}</code>}</td>
+                <td>{d.noRef ? <span className="muted">无</span> : <Addr a={d.referrer} />}</td>
                 <td>
                   {d.counted ? <span className="good">✓</span>
                     : <span className="bad" title={d.noRef ? "没有推荐人" : d.tooSmall ? "低于最小金额" : "已清仓"}>
