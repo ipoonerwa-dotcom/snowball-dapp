@@ -10,13 +10,15 @@
  *
  * 返佣不由合约发放,由项目方看完这张表手动打款 —— 所以刷单最多污染报表,薅不走钱。
  *
- * ── 三条社区规则,全部落在这里的计算口径 ──
+ * ── 两条社区规则,全部落在这里的计算口径 ──
  *  规则1「卖出就不算团队业绩」:业绩按【留存比例】折算,卖掉多少就少算多少。
- *  规则2「买入半小时后才到账」:未满 30 分钟的买入不计入本次结算。
- *  规则3「真实净增持才有返佣,卖了再买回来不重复」:
+ *  规则2「真实净增持才有返佣,卖了再买回来不重复」:
  *        用【累计口径】—— 应发总额按"当前还持有多少"算,再减去"已发过多少"。
  *        卖掉再买回同样的量,当前持仓没变 → 应发总额不变 → 本次应发 = 0。
  *        这天然杜绝了"来回刷同一笔"重复领取。
+ *
+ *  (原先还有一条「买入满 30 分钟才计入」——那是为链上自动发放设的结算窗口。
+ *   改人工发放后,人工复核本身就是延迟,再压 30 分钟只会让报表少一截,故取消:买入即显示。)
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -51,8 +53,6 @@ const ZERO = "0x0000000000000000000000000000000000000000";
 const dayKey = (ts: number) => new Date(ts * 1000).toLocaleDateString("sv-SE"); // YYYY-MM-DD
 const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
 
-/** 规则2:买入满这么久才计入结算 */
-const MATURE_SECONDS = 30 * 60;
 /** 已发放台账(浏览器本地保存,可导出备份) */
 const PAID_KEY = "snowball-paid-usd-v1";
 
@@ -196,16 +196,15 @@ export default function AdminReport() {
   }, [rows]);
 
   /**
-   * 每个买家的「有效业绩」——规则 1+2+3 都在这里:
-   *   规则2:只统计满 30 分钟的买入
-   *   规则1+3:有效业绩 = 累计买入USD × 留存比例(留存 = 当前持有+质押,按累计买入量封顶)
+   * 每个买家的「有效业绩」——两条规则都在这里:
+   *   规则1+2:有效业绩 = 累计买入USD × 留存比例(留存 = 当前持有+质押,按累计买入量封顶)
    *           卖掉 → 留存降 → 业绩降;卖了再买回来 → 持仓没净增 → 业绩不变 → 不会重复计佣
+   *   买入即计入,不再有 30 分钟等待。
    */
   const perBuyer = useMemo(() => {
-    const now = Math.floor(Date.now() / 1000);
     const m: Record<string, {
       buyer: string; referrer: string; boughtUsd: number; boughtTokens: bigint;
-      pendingUsd: number; kept: bigint; held: bigint; staked: bigint;
+      kept: bigint; held: bigint; staked: bigint;
       retainRatio: number; qualifiedUsd: number; lastBuy: number;
     }> = {};
 
@@ -213,19 +212,15 @@ export default function AdminReport() {
       const k = r.buyer.toLowerCase();
       const bi = info[k];
       m[k] ??= {
-        buyer: r.buyer, referrer: r.referrer, boughtUsd: 0, boughtTokens: 0n, pendingUsd: 0,
+        buyer: r.buyer, referrer: r.referrer, boughtUsd: 0, boughtTokens: 0n,
         kept: (bi?.held ?? 0n) + (bi?.staked ?? 0n), held: bi?.held ?? 0n, staked: bi?.staked ?? 0n,
         retainRatio: 0, qualifiedUsd: 0, lastBuy: 0,
       };
       const e = m[k];
       if (r.referrer !== ZERO) e.referrer = r.referrer;
       e.lastBuy = Math.max(e.lastBuy, r.time);
-      if (now - r.time >= MATURE_SECONDS) {
-        e.boughtUsd += Number(formatUnits(r.usd, 18)); // 规则2:已满 30 分钟
-        e.boughtTokens += r.tokens;
-      } else {
-        e.pendingUsd += Number(formatUnits(r.usd, 18)); // 未满 30 分钟,等下一轮
-      }
+      e.boughtUsd += Number(formatUnits(r.usd, 18));
+      e.boughtTokens += r.tokens;
     }
 
     for (const e of Object.values(m)) {
@@ -240,33 +235,31 @@ export default function AdminReport() {
 
   /** 逐笔明细(用于人工核对,按日期筛选) */
   const detail = useMemo(() => {
-    const now = Math.floor(Date.now() / 1000);
     const min = Number(minUsd || "0");
     return rows
       .filter((r) => day === "ALL" || dayKey(r.time) === day)
       .map((r) => {
         const e = perBuyer[r.buyer.toLowerCase()];
         const keepPct = (e?.retainRatio ?? 0) * 100;
-        const immature = now - r.time < MATURE_SECONDS;
         const dumped = keepPct < 10;
         const usdNum = Number(formatUnits(r.usd, 18));
         return {
           ...r,
           held: e?.held ?? 0n, staked: e?.staked ?? 0n,
-          keepPct, dumped, immature,
+          keepPct, dumped,
           noRef: r.referrer === ZERO,
           tooSmall: usdNum < min,
-          counted: r.referrer !== ZERO && !immature && usdNum >= min && !(excludeDumped && dumped),
+          counted: r.referrer !== ZERO && usdNum >= min && !(excludeDumped && dumped),
         };
       });
   }, [rows, perBuyer, day, excludeDumped, minUsd]);
 
-  /** 发放清单:累计应发 − 已发 = 本次应发(累计口径,天然实现规则3) */
+  /** 发放清单:累计应发 − 已发 = 本次应发(累计口径,天然实现规则2) */
   const payout = useMemo(() => {
     const price = Number(formatUnits(livePrice, 18)) || 0;
     const min = Number(minUsd || "0");
     const agg: Record<string, {
-      referrer: string; qualifiedUsd: number; pendingUsd: number;
+      referrer: string; qualifiedUsd: number;
       buyers: Set<string>; dumpedBuyers: number;
     }> = {};
 
@@ -275,9 +268,8 @@ export default function AdminReport() {
       if (e.boughtUsd < min && e.qualifiedUsd < min) continue;
       if (excludeDumped && e.retainRatio < 0.1) continue;
       const k = e.referrer.toLowerCase();
-      agg[k] ??= { referrer: e.referrer, qualifiedUsd: 0, pendingUsd: 0, buyers: new Set(), dumpedBuyers: 0 };
+      agg[k] ??= { referrer: e.referrer, qualifiedUsd: 0, buyers: new Set(), dumpedBuyers: 0 };
       agg[k].qualifiedUsd += e.qualifiedUsd;
-      agg[k].pendingUsd += e.pendingUsd;
       agg[k].buyers.add(e.buyer.toLowerCase());
       if (e.retainRatio < 0.1) agg[k].dumpedBuyers += 1;
     }
@@ -311,7 +303,6 @@ export default function AdminReport() {
     entitled: payout.reduce((s, p) => s + p.entitledUsd, 0),
     paid: payout.reduce((s, p) => s + p.paidUsd, 0),
     qualified: payout.reduce((s, p) => s + p.qualifiedUsd, 0),
-    pending: payout.reduce((s, p) => s + p.pendingUsd, 0),
   }), [payout]);
 
   async function copyBatch() {
@@ -381,7 +372,6 @@ export default function AdminReport() {
         <div className="st"><div className="k">本次应发(USD)</div><div className="v">{fmtUsd(totals.dueUsd)}</div></div>
         <div className="st"><div className="k">有效团队业绩</div><div className="v">{fmtUsd(totals.qualified)}</div></div>
         <div className="st"><div className="k">累计应发 / 已发</div><div className="v" style={{ fontSize: 17 }}>{fmtUsd(totals.entitled)}<small> / {fmtUsd(totals.paid)}</small></div></div>
-        <div className="st"><div className="k">未满30分钟</div><div className="v">{fmtUsd(totals.pending)}</div></div>
       </div>
 
       {/* 发放清单 */}
@@ -471,10 +461,17 @@ export default function AdminReport() {
         <b>计入规则</b>:只有<b>通过本 DApp 买入</b>才计入返佣。用户自己去 PancakeSwap 或钱包里买的,
         合约根本不会记录,不会出现在本表 —— 这是链上强制的,不靠人工判断。
         <br />
-        <b>怎么用</b>:① 选日期 → ② 扫一眼「逐笔明细」的<b>留存</b>列有没有异常 →
-        ③ 回「发放清单」点「复制批量转账格式」→ ④ 粘进批量转账工具打款。
+        买入<b>即时显示</b>,没有等待期。
         <br />
-        <b>留存</b> =(当前持有 + 已质押)÷ 这笔买到的量,仅供参考:接近 0% 说明买完就砸(疑似刷单),
+        <b>怎么用</b>:① 扫一眼「逐笔明细」的<b>留存</b>列有没有异常 →
+        ② 回「发放清单」点「复制批量转账格式」→ ③ 粘进批量转账工具打款 →
+        ④ 打完点「全部标记已发放」(下次只算新增的,不会重复发)。
+        <br />
+        <b>两条计算规则</b>:①<b>卖出不算业绩</b> —— 有效业绩按留存比例折算,卖多少少算多少;
+        ②<b>只认真实净增持</b> —— 应发按累计口径算再减已发,卖了再买回来持仓没净增 → 本次应发 = 0,
+        不会重复领。
+        <br />
+        <b>留存</b> =(当前持有 + 已质押)÷ 累计买到的量。接近 0% 说明买完就砸(疑似刷单),
         可勾选上方「剔除已清仓」一键排除。<b>已质押</b>的是最优质用户(签约锁仓),建议优先发放。
       </div>
     </section>
