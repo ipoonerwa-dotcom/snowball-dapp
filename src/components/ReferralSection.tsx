@@ -6,11 +6,12 @@ import { NetworkOrb } from "./Art";
 import { copyText } from "@/lib/clipboard";
 import { REFERRAL_ENABLED, TIERS } from "@/lib/config";
 import { fmtUsd } from "@/lib/format";
-import { useReferral } from "@/lib/useReferral";
+import { useDirectStats, useReferral } from "@/lib/useReferral";
 
 export default function ReferralSection() {
   const { address, isConnected } = useAccount();
   const ref = useReferral();
+  const { directUsd } = useDirectStats();
 
   const [inviteLink, setInviteLink] = useState("");
   const [copyState, setCopyState] = useState<"idle" | "ok" | "manual">("idle");
@@ -67,7 +68,8 @@ export default function ReferralSection() {
           <h2>把雪球滚给更多人</h2>
           <p>
             把你的专属邀请链接发给好友,他们<b>打开链接进 DApp</b> 就自动绑定成你的下线;之后他们通过 DApp
-            买入 SNOWBALL,你按团队等级实时拿 <b>5%–10%</b> 返佣(社区池发放,随时可领)。团队 U 业绩越高,等级越高,分成越多。
+            买入 SNOWBALL,你按团队等级拿 <b>5%–10%</b> 返佣,由<b>社区定期核对后直接打到你钱包</b>,不用手动领。
+            团队 U 业绩越高,等级越高,分成越多。
           </p>
 
           {/* 邀请链接 */}
@@ -124,25 +126,37 @@ export default function ReferralSection() {
           </div>
           <div className="iv">
             <div className="ic">
+              <div className="k">直推人数</div>
+              <div className="v">{REFERRAL_ENABLED && isConnected ? ref.directCount : dash}</div>
+            </div>
+            <div className="ic">
+              <div className="k">直推业绩</div>
+              <div className="v">{REFERRAL_ENABLED && isConnected ? fmtUsd(directUsd) : dash}</div>
+            </div>
+          </div>
+          <div className="iv">
+            <div className="ic">
               <div className="k">我的买入</div>
               <div className="v">{REFERRAL_ENABLED && isConnected ? fmtUsd(ref.myBuyUsd) : dash}</div>
             </div>
             <div className="ic">
-              <div className="k">直推人数</div>
-              <div className="v">{REFERRAL_ENABLED && isConnected ? ref.directCount : dash}</div>
+              <div className="k">上级</div>
+              <div className="v" style={{ fontSize: 15 }}>
+                {!REFERRAL_ENABLED || !isConnected ? dash : ref.bound ? `${ref.referrer.slice(0, 6)}…${ref.referrer.slice(-4)}` : "未绑定"}
+              </div>
             </div>
           </div>
 
-          {/* 返佣发放说明(链上不再自动发放,由项目方按记录人工打款)*/}
+          {/* 返佣发放说明(链上不再自动发放,由社区按记录人工打款)*/}
           <div className="acc" style={{ marginTop: 12, marginBottom: 12 }}>
             <div className="l">返佣发放方式</div>
             <div className="b" style={{ fontSize: 17 }}>
-              项目方定期发放 <span>直接打到你的钱包</span>
+              社区定期发放 <span>直接打到你的钱包</span>
             </div>
           </div>
           <div className="note">
             所有<b>通过本 DApp 的买入</b>都会记录在链上(买家、金额、推荐人、时间,任何人可查证)。
-            项目方按这份链上记录<b>定期核对后直接把 SNOWBALL 打到推荐人钱包</b>,无需你手动领取。
+            社区按这份链上记录<b>定期核对后直接把 SNOWBALL 打到推荐人钱包</b>,无需你手动领取。
             <br />
             自己去 PancakeSwap 或钱包里买的<b>不计入</b>——合约只记录经本 DApp 的买入。
           </div>
