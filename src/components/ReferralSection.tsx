@@ -11,7 +11,8 @@ import { useDirectStats, useReferral } from "@/lib/useReferral";
 export default function ReferralSection() {
   const { address, isConnected } = useAccount();
   const ref = useReferral();
-  const { directUsd } = useDirectStats();
+  // 直推/团队业绩都实时算(不走 keeper),两个数永远自洽
+  const { directUsd, teamUsd } = useDirectStats();
 
   const [inviteLink, setInviteLink] = useState("");
   const [copyState, setCopyState] = useState<"idle" | "ok" | "manual">("idle");
@@ -109,7 +110,8 @@ export default function ReferralSection() {
             ))}
           </div>
           <div className="note">
-            等级按团队累计买入(U)升级:雪球 $5,000 · 雪坡 $10,000 · 雪崩 $20,000 · 冰川 $35,000 · 雪峰 $50,000;约每 15 分钟更新一次。
+            等级按团队累计买入(U)升级:雪球 $5,000 · 雪坡 $10,000 · 雪崩 $20,000 · 冰川 $35,000 · 雪峰 $50,000。
+            业绩数字<b>实时更新</b>(下线卖出会相应减少);等级约每 15 分钟重算一次。
           </div>
         </div>
 
@@ -121,7 +123,7 @@ export default function ReferralSection() {
             </div>
             <div className="ic">
               <div className="k">团队业绩</div>
-              <div className="v">{ref.teamUsd != null ? fmtUsd(ref.teamUsd) : dash}</div>
+              <div className="v">{REFERRAL_ENABLED && isConnected ? fmtUsd(teamUsd) : dash}</div>
             </div>
           </div>
           <div className="iv">

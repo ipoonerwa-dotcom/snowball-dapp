@@ -27,30 +27,33 @@ export function useUrlRef(): `0x${string}` | undefined {
 }
 
 /**
- * 我的直推业绩:找出所有上级是我的地址,把他们的【有效业绩】加起来。
- * 有效业绩 = 累计买入USD × 留存比例(留存 = 钱包余额 + 未取回质押本金,按累计买到量封顶),
- * 与后台发放清单、keeper 完全同口径 —— 下线卖出多少就少算多少。
+ * 我的【直推业绩】和【团队业绩】—— 两个都实时读链算,不依赖 keeper。
  *
- * 链上没有"某人的直推列表"这个映射,所以先枚举全部参与者再筛;
- * 好在 getUsers + buyerSnapshots 都是批量接口,总共两三次调用就能拿完。
+ * 为什么不用链上 teamUsd:那个值由 keeper 每 15 分钟推一次,而直推业绩是实时算的。
+ * 两个数新鲜度不一样,会出现"直推 $2.28、团队 $0"这种看着像坏了的画面
+ * (团队业绩逻辑上必须 ≥ 直推业绩)。所以两个都实时算,永远自洽。
+ *
+ * 有效业绩 = 累计买入USD × 留存比例(留存 = 钱包余额 + 未取回质押本金,按累计买到量封顶),
+ * 与后台发放清单、keeper 同口径 —— 下线卖出多少就少算多少。
  */
 export function useDirectStats() {
   const { address } = useAccount();
   const me = (address ?? "").toLowerCase();
   const client = usePublicClient({ chainId: CHAIN_ID });
   const [directUsd, setDirectUsd] = useState(0);
+  const [teamUsd, setTeamUsd] = useState(0);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     let dead = false;
-    (async () => {
-      if (!client || !REFERRAL_ENABLED || !me) { setDirectUsd(0); return; }
+    async function run() {
+      if (!client || !REFERRAL_ENABLED || !me) { setDirectUsd(0); setTeamUsd(0); return; }
       setLoading(true);
       try {
         const n = Number((await client.readContract({
           address: BUY_ROUTER, abi: RECORDER_ABI, functionName: "usersLength",
         })) as bigint);
-        if (!n) { if (!dead) setDirectUsd(0); return; }
+        if (!n) { if (!dead) { setDirectUsd(0); setTeamUsd(0); } return; }
 
         const all: `0x${string}`[] = [];
         for (let off = 0; off < n; off += 300) {
@@ -60,50 +63,79 @@ export function useDirectStats() {
           all.push(...page);
         }
 
-        // 一次批量拿到 上级 / 累计买入 / 累计到手 / 当前持有
-        const mine: { a: `0x${string}`; usd: bigint; tok: bigint; held: bigint }[] = [];
+        // 一次批量拿到全员的 上级 / 累计买入 / 累计到手 / 当前持有
+        const snap = new Map<string, { usd: bigint; tok: bigint; held: bigint }>();
+        const children = new Map<string, string[]>();
         for (let i = 0; i < all.length; i += 150) {
           const slice = all.slice(i, i + 150);
           const [refs, boughtUsd, boughtTok, held] = (await client.readContract({
             address: BUY_ROUTER, abi: RECORDER_ABI, functionName: "buyerSnapshots", args: [slice],
           })) as [readonly `0x${string}`[], readonly bigint[], readonly bigint[], readonly bigint[]];
           slice.forEach((u, k) => {
-            if (refs[k].toLowerCase() === me && boughtTok[k] > 0n) {
-              mine.push({ a: u, usd: boughtUsd[k], tok: boughtTok[k], held: held[k] });
+            const lu = u.toLowerCase();
+            snap.set(lu, { usd: boughtUsd[k], tok: boughtTok[k], held: held[k] });
+            const ref = refs[k].toLowerCase();
+            if (ref !== ZERO.toLowerCase()) {
+              if (!children.has(ref)) children.set(ref, []);
+              children.get(ref)!.push(lu);
             }
           });
         }
 
-        // 质押也算持有(买了去签约是最强留存证明)
-        let total = 0;
-        for (const d of mine) {
+        // 我的直推 + 整条下线(带环保护:互绑时不把祖先当子节点,否则自己的买入会算进自己团队)
+        const directs = children.get(me) ?? [];
+        const team: string[] = [];
+        const inProg = new Set<string>([me]);
+        const walk = (u: string) => {
+          for (const c of children.get(u) ?? []) {
+            if (inProg.has(c)) continue;
+            inProg.add(c);
+            team.push(c);
+            walk(c);
+          }
+        };
+        walk(me);
+
+        // 只对"真买过币"的人读质押(质押也算持有),把调用量限制在自己的下线里
+        const buyers = team.filter((u) => (snap.get(u)?.tok ?? 0n) > 0n);
+        const qualified = new Map<string, number>();
+        for (const u of buyers) {
+          const s = snap.get(u)!;
           let staked = 0n;
           try {
             const cnt = (await client.readContract({
-              address: STAKING, abi: STAKING_ABI, functionName: "positionCount", args: [d.a],
+              address: STAKING, abi: STAKING_ABI, functionName: "positionCount", args: [u as `0x${string}`],
             })) as bigint;
             for (let i = 0n; i < cnt; i++) {
               const p = (await client.readContract({
-                address: STAKING, abi: STAKING_ABI, functionName: "positions", args: [d.a, i],
+                address: STAKING, abi: STAKING_ABI, functionName: "positions", args: [u as `0x${string}`, i],
               })) as readonly [bigint, bigint, bigint, bigint, bigint, bigint, boolean];
               if (!p[6]) staked += p[0];
             }
-          } catch { /* 读不到就按 0 处理 */ }
-          const kept = d.held + staked;
-          const retained = kept < d.tok ? kept : d.tok;
-          total += Number(formatUnits((d.usd * retained) / d.tok, 18));
+          } catch { /* 读不到按 0 处理 */ }
+          const kept = s.held + staked;
+          const retained = kept < s.tok ? kept : s.tok;
+          qualified.set(u, Number(formatUnits((s.usd * retained) / s.tok, 18)));
         }
-        if (!dead) setDirectUsd(total);
+
+        const sum = (list: string[]) => list.reduce((t, u) => t + (qualified.get(u) ?? 0), 0);
+        if (!dead) {
+          setDirectUsd(sum(directs));
+          setTeamUsd(sum(team));
+        }
       } catch {
-        if (!dead) setDirectUsd(0);
+        /* 读失败保持上一次的值,不要闪回 0 */
       } finally {
         if (!dead) setLoading(false);
       }
-    })();
-    return () => { dead = true; };
+    }
+    run();
+    // 新买入要能自动反映,不用手动刷新页面
+    const t = setInterval(run, 30_000);
+    return () => { dead = true; clearInterval(t); };
   }, [client, me]);
 
-  return { directUsd, loading };
+  return { directUsd, teamUsd, loading };
 }
 
 export type ReferralState = {
