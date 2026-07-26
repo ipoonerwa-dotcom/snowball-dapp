@@ -24,6 +24,24 @@ export const DEPLOYED = STAKING !== ZERO && ORACLE !== ZERO;
 export const BUY_ROUTER = addr(process.env.NEXT_PUBLIC_BUY_ROUTER, "0x3f2fdAc1D415436947D8294D833Ee9379a37d518");
 export const REFERRAL_ENABLED = BUY_ROUTER !== ZERO;
 
+/**
+ * /admin 返佣对账后台的可见钱包白名单。
+ * 默认写死项目方 owner 钱包,env `NEXT_PUBLIC_ADMINS`(逗号分隔)可覆盖/追加。
+ *
+ * 注意这只是「前端遮挡」,不是真正的权限控制:页面数据全部来自公开链上记录,
+ * 懂技术的人自己读链一样能算出同样的表。它的作用是不让普通人随手点进来,
+ * 以及避免误导——页面是只读的,任何人都改不了发放金额、也动不了任何资金。
+ */
+const DEFAULT_ADMINS = ["0x7B3a29D70f8645C23BFd46dA9DcC51b1E053229B"];
+export const ADMINS: string[] = (() => {
+  const fromEnv = (process.env.NEXT_PUBLIC_ADMINS ?? "")
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter((s) => /^0x[0-9a-f]{40}$/.test(s));
+  const merged = new Set([...DEFAULT_ADMINS.map((a) => a.toLowerCase()), ...fromEnv]);
+  return [...merged];
+})();
+
 /** PancakeSwap V2 路由 + WBNB(仅用于前端报价 getAmountsOut;真正兑换在 buy-router 内) */
 export const PANCAKE_ROUTER = "0x10ED43C718714eb63d5aA57B78B54704E256024E" as const;
 export const WBNB = "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c" as const;

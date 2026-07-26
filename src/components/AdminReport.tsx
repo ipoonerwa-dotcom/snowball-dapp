@@ -23,7 +23,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { formatEther, formatUnits } from "viem";
-import { useAccount, usePublicClient } from "wagmi";
+import { usePublicClient } from "wagmi";
 import { RECORDER_ABI } from "@/lib/recorderAbi";
 import { STAKING_ABI } from "@/lib/abis";
 import { BUY_ROUTER, CHAIN_ID, STAKING, TIERS } from "@/lib/config";
@@ -31,11 +31,7 @@ import { fmt, fmtUsd } from "@/lib/format";
 import { copyText } from "@/lib/clipboard";
 import { usePrice } from "@/lib/useSnowball";
 
-/** 允许查看本页的钱包(owner / 运营)。留空则任何人可看(仅只读数据)。 */
-const ADMINS = (process.env.NEXT_PUBLIC_ADMINS ?? "")
-  .split(",")
-  .map((s) => s.trim().toLowerCase())
-  .filter(Boolean);
+// 白名单见 config.ts:ADMINS(默认写死 owner 钱包,env NEXT_PUBLIC_ADMINS 可追加)
 
 type Row = {
   id: number;
@@ -65,7 +61,6 @@ function savePaid(v: Record<string, number>) {
 
 export default function AdminReport() {
   const client = usePublicClient({ chainId: CHAIN_ID });
-  const { address } = useAccount();
   const { livePrice } = usePrice();
 
   const [rows, setRows] = useState<Row[]>([]);
@@ -81,10 +76,12 @@ export default function AdminReport() {
   const [minUsd, setMinUsd] = useState("0");
   const [copied, setCopied] = useState("");
 
-  const allowed = ADMINS.length === 0 || (!!address && ADMINS.includes(address.toLowerCase()));
+  // 访问控制已在服务端完成(/admin 页面校验 httpOnly 登录 Cookie 后才渲染本组件),
+  // 这里不再重复要求连钱包 —— 后台只是读链上公开数据,连钱包对对账没有意义。
+  const allowed = true;
 
   const load = useCallback(async () => {
-    if (!client) return;
+    if (!client || !allowed) return; // 未授权不拉数据
     setLoading(true);
     setErr("");
     try {
@@ -154,7 +151,7 @@ export default function AdminReport() {
     } finally {
       setLoading(false);
     }
-  }, [client]);
+  }, [client, allowed]);
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => { setPaid(loadPaid()); }, []);
@@ -314,6 +311,11 @@ export default function AdminReport() {
     setTimeout(() => setCopied(""), 2500);
   }
 
+  async function logout() {
+    await fetch("/api/admin/logout", { method: "POST" });
+    window.location.reload();
+  }
+
   function exportCsv() {
     const head = "推荐人,等级,有效业绩USD,费率,累计应发USD,已发USD,本次应发USD,本次应发SNOWBALL,下线人数\n";
     const body = payout
@@ -330,20 +332,15 @@ export default function AdminReport() {
     a.click();
   }
 
-  if (!allowed) {
-    return (
-      <section style={{ marginTop: 40 }}>
-        <div className="eb"><i />返佣对账</div>
-        <h2>需要管理员钱包</h2>
-        <p className="sub">请用管理员钱包连接后查看。</p>
-      </section>
-    );
-  }
-
   return (
     <section style={{ marginTop: 28 }}>
-      <div className="eb"><i />返佣对账 · Payout</div>
-      <h2>每日返佣发放清单</h2>
+      <div className="adm-top">
+        <div>
+          <div className="eb"><i />返佣对账 · Payout</div>
+          <h2 style={{ margin: "10px 0 3px" }}>每日返佣发放清单</h2>
+        </div>
+        <button className="mini-btn ghost" onClick={logout}>退出登录</button>
+      </div>
       <p className="sub">
         数据直接读链上买入记录。返佣<b>不由合约发放</b>,请按下表人工打款——刷单只能污染报表,拿不走钱。
       </p>

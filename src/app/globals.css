@@ -282,3 +282,5 @@ button.cd { display: block; width: 100%; text-align: left; font: inherit; color:
 .poolbar.ok .tag { color: var(--teal); }
 .poolbar.short { border-color: rgba(251,191,36,.4); background: rgba(251,191,36,.07); }
 .poolbar.short .tag { color: var(--warn); }
+
+.adm-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 14px; flex-wrap: wrap; }
