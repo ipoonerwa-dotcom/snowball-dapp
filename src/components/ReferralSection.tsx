@@ -1,26 +1,20 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useAccount, useConfig, useWriteContract } from "wagmi";
-import { waitForTransactionReceipt } from "wagmi/actions";
+import { useAccount } from "wagmi";
 import { NetworkOrb } from "./Art";
-import { BUY_ROUTER_ABI } from "@/lib/abis";
 import { copyText } from "@/lib/clipboard";
-import { BUY_ROUTER, REFERRAL_ENABLED, TIERS } from "@/lib/config";
-import { fmt, fmtUsd, toNum } from "@/lib/format";
+import { REFERRAL_ENABLED, TIERS } from "@/lib/config";
+import { fmtUsd } from "@/lib/format";
 import { useReferral } from "@/lib/useReferral";
 
 export default function ReferralSection() {
-  const config = useConfig();
   const { address, isConnected } = useAccount();
   const ref = useReferral();
-  const { writeContractAsync } = useWriteContract();
 
   const [inviteLink, setInviteLink] = useState("");
   const [copyState, setCopyState] = useState<"idle" | "ok" | "manual">("idle");
   const [canShare, setCanShare] = useState(false);
-  const [claiming, setClaiming] = useState(false);
-  const [msg, setMsg] = useState("");
   const linkInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -57,22 +51,6 @@ export default function ReferralSection() {
       }
       setCopyState("manual");
       setTimeout(() => setCopyState("idle"), 4000);
-    }
-  }
-
-  async function claim() {
-    setClaiming(true);
-    setMsg("");
-    try {
-      const hash = await writeContractAsync({ address: BUY_ROUTER, abi: BUY_ROUTER_ABI, functionName: "claimCommission" });
-      await waitForTransactionReceipt(config, { hash });
-      setMsg("已领取 ✓");
-      ref.refetch();
-    } catch (e) {
-      const m = (e as { shortMessage?: string })?.shortMessage || "领取失败";
-      setMsg(/rejected|denied/i.test(m) ? "已取消" : m.length > 60 ? "领取失败" : m);
-    } finally {
-      setClaiming(false);
     }
   }
 
@@ -146,8 +124,8 @@ export default function ReferralSection() {
           </div>
           <div className="iv">
             <div className="ic">
-              <div className="k">累计返佣</div>
-              <div className="v">{REFERRAL_ENABLED && isConnected ? fmt(toNum(ref.claimed) + toNum(ref.owed), 2) : dash}</div>
+              <div className="k">我的买入</div>
+              <div className="v">{REFERRAL_ENABLED && isConnected ? fmtUsd(ref.myBuyUsd) : dash}</div>
             </div>
             <div className="ic">
               <div className="k">直推人数</div>
@@ -155,27 +133,19 @@ export default function ReferralSection() {
             </div>
           </div>
 
-          {/* 可领返佣 + 领取 */}
+          {/* 返佣发放说明(链上不再自动发放,由项目方按记录人工打款)*/}
           <div className="acc" style={{ marginTop: 12, marginBottom: 12 }}>
-            <div className="l">可领返佣</div>
-            <div className="b">
-              {REFERRAL_ENABLED && isConnected ? fmt(toNum(ref.claimable), 4) : dash} <span>SNOWBALL</span>
+            <div className="l">返佣发放方式</div>
+            <div className="b" style={{ fontSize: 17 }}>
+              项目方定期发放 <span>直接打到你的钱包</span>
             </div>
           </div>
-          <button
-            className="btn bc"
-            style={{ width: "100%" }}
-            disabled={!REFERRAL_ENABLED || !isConnected || ref.claimable === 0n || claiming}
-            onClick={claim}
-          >
-            {!REFERRAL_ENABLED ? "邀请待部署" : claiming ? "领取中…" : "领取返佣"}
-          </button>
-          {ref.owed > ref.claimable && ref.owed > 0n && (
-            <div className="note warn">
-              还有 {fmt(toNum(ref.owed - ref.claimable), 4)} 待发(邀请池余额不足,社区补币后可领,不会作废)。
-            </div>
-          )}
-          {msg && <div className={`note ${/✓/.test(msg) ? "" : "warn"}`}>{msg}</div>}
+          <div className="note">
+            所有<b>通过本 DApp 的买入</b>都会记录在链上(买家、金额、推荐人、时间,任何人可查证)。
+            项目方按这份链上记录<b>定期核对后直接把 SNOWBALL 打到推荐人钱包</b>,无需你手动领取。
+            <br />
+            自己去 PancakeSwap 或钱包里买的<b>不计入</b>——合约只记录经本 DApp 的买入。
+          </div>
         </div>
       </div>
     </section>

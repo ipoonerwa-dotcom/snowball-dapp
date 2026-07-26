@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { formatUnits, isAddress } from "viem";
 import { useAccount, useReadContracts } from "wagmi";
-import { BUY_ROUTER_ABI } from "./abis";
+import { RECORDER_ABI } from "./recorderAbi";
 import { BUY_ROUTER, CHAIN_ID, REFERRAL_ENABLED, ZERO } from "./config";
 
 const POLL = 20_000;
@@ -28,52 +28,46 @@ export function useUrlRef(): `0x${string}` | undefined {
 export type ReferralState = {
   referrer: `0x${string}`;   // 我的邀请人(0 = 未绑定)
   bound: boolean;
-  rank: number;              // 0..5
+  rank: number;              // 0..5(展示用)
   directCount: number;       // 我的直推人数
-  owed: bigint;              // 累计待领返佣(SNOWBALL)
-  claimable: bigint;         // 当前可领(受池余额限制)
-  claimed: bigint;           // 累计已领
-  pool: bigint;              // 邀请池余额
+  myBuyUsd: number;          // 我通过 DApp 的累计买入(USD)
+  teamUsd: number | null;    // 团队业绩(keeper 推上链;未推过=0)
   buyOpen: boolean;
-  teamUsd: number | null;    // 团队 U 业绩(来自后端;未就绪=null)
   refetch: () => void;
 };
 
+/**
+ * 返佣改为「项目方按记录人工发放」后,链上不再有 owed / claimable / 领取。
+ * 这里只读展示所需的数据:绑定关系、等级、直推数、买入业绩。
+ */
 export function useReferral(): ReferralState {
   const { address } = useAccount();
   const a = address ?? ZERO;
 
   const { data, refetch } = useReadContracts({
     contracts: [
-      { address: BUY_ROUTER, abi: BUY_ROUTER_ABI, functionName: "referrerOf", args: [a], chainId: CHAIN_ID },
-      { address: BUY_ROUTER, abi: BUY_ROUTER_ABI, functionName: "rank", args: [a], chainId: CHAIN_ID },
-      { address: BUY_ROUTER, abi: BUY_ROUTER_ABI, functionName: "directCount", args: [a], chainId: CHAIN_ID },
-      { address: BUY_ROUTER, abi: BUY_ROUTER_ABI, functionName: "owed", args: [a], chainId: CHAIN_ID },
-      { address: BUY_ROUTER, abi: BUY_ROUTER_ABI, functionName: "claimable", args: [a], chainId: CHAIN_ID },
-      { address: BUY_ROUTER, abi: BUY_ROUTER_ABI, functionName: "claimed", args: [a], chainId: CHAIN_ID },
-      { address: BUY_ROUTER, abi: BUY_ROUTER_ABI, functionName: "referralPool", chainId: CHAIN_ID },
-      { address: BUY_ROUTER, abi: BUY_ROUTER_ABI, functionName: "buyOpen", chainId: CHAIN_ID },
-      { address: BUY_ROUTER, abi: BUY_ROUTER_ABI, functionName: "teamUsd", args: [a], chainId: CHAIN_ID },
+      { address: BUY_ROUTER, abi: RECORDER_ABI, functionName: "referrerOf", args: [a], chainId: CHAIN_ID },
+      { address: BUY_ROUTER, abi: RECORDER_ABI, functionName: "rank", args: [a], chainId: CHAIN_ID },
+      { address: BUY_ROUTER, abi: RECORDER_ABI, functionName: "directCount", args: [a], chainId: CHAIN_ID },
+      { address: BUY_ROUTER, abi: RECORDER_ABI, functionName: "teamUsd", args: [a], chainId: CHAIN_ID },
+      { address: BUY_ROUTER, abi: RECORDER_ABI, functionName: "totalUsdOf", args: [a], chainId: CHAIN_ID },
+      { address: BUY_ROUTER, abi: RECORDER_ABI, functionName: "buyOpen", chainId: CHAIN_ID },
     ],
     query: { enabled: REFERRAL_ENABLED && !!address, refetchInterval: POLL },
   });
 
   const referrer = (data?.[0]?.result as `0x${string}` | undefined) ?? ZERO;
-  const teamUsdWei = data?.[8]?.result as bigint | undefined;
-  // 团队 U 业绩由 keeper 算好后随 rank 一起推上链;这里直接读链上(未推过=0)。
-  const teamUsd = REFERRAL_ENABLED && address ? Number(formatUnits(teamUsdWei ?? 0n, 18)) : null;
+  const teamUsdWei = data?.[3]?.result as bigint | undefined;
+  const myUsdWei = data?.[4]?.result as bigint | undefined;
 
   return {
     referrer,
     bound: referrer !== ZERO,
     rank: Number((data?.[1]?.result as number | undefined) ?? 0),
     directCount: Number((data?.[2]?.result as bigint | undefined) ?? 0n),
-    owed: (data?.[3]?.result as bigint | undefined) ?? 0n,
-    claimable: (data?.[4]?.result as bigint | undefined) ?? 0n,
-    claimed: (data?.[5]?.result as bigint | undefined) ?? 0n,
-    pool: (data?.[6]?.result as bigint | undefined) ?? 0n,
-    buyOpen: (data?.[7]?.result as boolean | undefined) ?? false,
-    teamUsd,
+    myBuyUsd: Number(formatUnits(myUsdWei ?? 0n, 18)),
+    teamUsd: REFERRAL_ENABLED && address ? Number(formatUnits(teamUsdWei ?? 0n, 18)) : null,
+    buyOpen: (data?.[5]?.result as boolean | undefined) ?? false,
     refetch,
   };
 }

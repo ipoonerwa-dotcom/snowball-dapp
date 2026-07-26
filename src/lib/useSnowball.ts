@@ -75,6 +75,73 @@ export function useGlobalStats() {
   };
 }
 
+/** 枚举质押者用的最小 ABI:新旧买入合约都有这两个函数 */
+const USERS_ABI = [
+  { type: "function", name: "usersLength", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
+  { type: "function", name: "users", stateMutability: "view", inputs: [{ type: "uint256" }], outputs: [{ type: "address" }] },
+] as const;
+
+/**
+ * 全体待领总额 vs 奖励池。
+ *
+ * 为什么需要:合约是「先到先得,发完即止」——池子不足时点领取,差额会被永久作废。
+ * 只比较「我这一单 vs 池子」挡不住多人抢领(各自都够、加起来不够,后领的人被截断)。
+ * 所以领取按钮必须按「全体待领总额」判断:池子盖不住所有人,谁都先别领,等社区补币。
+ *
+ * 签约合约没有质押者名单,这里从买入合约的 users 列表反查(社区基本都从 DApp 进来)。
+ * 局限:没走过 DApp 的质押者不在名单里,统计会略微低估 —— 所以这是保守但非绝对精确的估计。
+ */
+export function useTotalPending() {
+  // 1) 名单长度
+  const { data: lenData } = useReadContract({
+    address: BUY_ROUTER, abi: USERS_ABI, functionName: "usersLength", chainId: CHAIN_ID,
+    query: { enabled: DEPLOYED, refetchInterval: 60_000 },
+  });
+  const len = Number((lenData as bigint | undefined) ?? 0n);
+
+  // 2) 名单地址
+  const { data: userData } = useReadContracts({
+    contracts: Array.from({ length: len }, (_, i) => ({
+      address: BUY_ROUTER, abi: USERS_ABI, functionName: "users" as const, args: [BigInt(i)], chainId: CHAIN_ID,
+    })),
+    query: { enabled: DEPLOYED && len > 0, refetchInterval: 60_000 },
+  });
+  const users = (userData ?? []).map((d) => d?.result as `0x${string}` | undefined).filter(Boolean) as `0x${string}`[];
+
+  // 3) 每人仓位数
+  const { data: cntData } = useReadContracts({
+    contracts: users.map((u) => ({
+      address: STAKING, abi: STAKING_ABI, functionName: "positionCount" as const, args: [u], chainId: CHAIN_ID,
+    })),
+    query: { enabled: DEPLOYED && users.length > 0, refetchInterval: 60_000 },
+  });
+
+  // 4) 每个仓位的待领
+  const pairs: { user: `0x${string}`; idx: bigint }[] = [];
+  (cntData ?? []).forEach((d, i) => {
+    const c = Number((d?.result as bigint | undefined) ?? 0n);
+    for (let j = 0; j < c; j++) pairs.push({ user: users[i], idx: BigInt(j) });
+  });
+
+  const { data: pendData, isLoading } = useReadContracts({
+    contracts: pairs.map((p) => ({
+      address: STAKING, abi: STAKING_ABI, functionName: "pendingReward" as const, args: [p.user, p.idx], chainId: CHAIN_ID,
+    })),
+    query: { enabled: DEPLOYED && pairs.length > 0, refetchInterval: 60_000 },
+  });
+
+  let totalPending = 0n;
+  let counted = 0;
+  for (const d of pendData ?? []) {
+    const v = d?.result as bigint | undefined;
+    if (v !== undefined) { totalPending += v; counted++; }
+  }
+
+  // 数据没读齐时不要给出"够付"的错误结论 —— ready=false 时调用方应保守处理
+  const ready = DEPLOYED && len > 0 && counted === pairs.length && !isLoading;
+  return { totalPending, positions: pairs.length, ready };
+}
+
 /** 我的余额 + 对签约合约的授权额度 */
 export function useWallet() {
   const { address } = useAccount();
