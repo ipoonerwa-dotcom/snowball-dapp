@@ -42,12 +42,21 @@ export function useDirectStats() {
   const client = usePublicClient({ chainId: CHAIN_ID });
   const [directUsd, setDirectUsd] = useState(0);
   const [teamUsd, setTeamUsd] = useState(0);
+  // 团队质押业绩(社区团队长要看的:下线一共签约了多少币 / 折多少 U)
+  const [teamStakedTok, setTeamStakedTok] = useState(0);
+  const [teamStakedUsd, setTeamStakedUsd] = useState(0);
+  const [directStakedTok, setDirectStakedTok] = useState(0);
+  const [directStakedUsd, setDirectStakedUsd] = useState(0);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     let dead = false;
     async function run() {
-      if (!client || !REFERRAL_ENABLED || !me) { setDirectUsd(0); setTeamUsd(0); return; }
+      if (!client || !REFERRAL_ENABLED || !me) {
+        setDirectUsd(0); setTeamUsd(0);
+        setTeamStakedTok(0); setTeamStakedUsd(0); setDirectStakedTok(0); setDirectStakedUsd(0);
+        return;
+      }
       setLoading(true);
       try {
         const n = Number((await client.readContract({
@@ -99,9 +108,17 @@ export function useDirectStats() {
         // 只对"真买过币"的人读质押(质押也算持有),把调用量限制在自己的下线里
         const buyers = team.filter((u) => (snap.get(u)?.tok ?? 0n) > 0n);
         const qualified = new Map<string, number>();
+        // 团队质押业绩:就在下面这个已有的仓位遍历里顺手累计,不额外发请求。
+        // 口径与「我的签约」那张卡一致 —— 币按 principal,U 按入场价锁定的本金 U 值
+        // (= 奖励总额 ÷ 费率,30 天 +10% / 60 天 +25%),这样团队长看到的和成员自己看到的对得上。
+        // 只算【未取回】的仓位:已到期取回的不该再算作在场业绩。
+        const stakedTokOf = new Map<string, number>();
+        const stakedUsdOf = new Map<string, number>();
         for (const u of buyers) {
           const s = snap.get(u)!;
           let staked = 0n;
+          let uTok = 0n;
+          let uUsd = 0n;
           try {
             const cnt = (await client.readContract({
               address: STAKING, abi: STAKING_ABI, functionName: "positionCount", args: [u as `0x${string}`],
@@ -110,18 +127,30 @@ export function useDirectStats() {
               const p = (await client.readContract({
                 address: STAKING, abi: STAKING_ABI, functionName: "positions", args: [u as `0x${string}`, i],
               })) as readonly [bigint, bigint, bigint, bigint, bigint, bigint, boolean];
-              if (!p[6]) staked += p[0];
+              if (!p[6]) {
+                staked += p[0];
+                uTok += p[0];
+                const rateBps = p[3] === 60n ? 2500n : 1000n;
+                uUsd += (p[1] * p[3] * 10000n) / rateBps;
+              }
             }
           } catch { /* 读不到按 0 处理 */ }
+          stakedTokOf.set(u, Number(formatUnits(uTok, 18)));
+          stakedUsdOf.set(u, Number(formatUnits(uUsd, 18)));
           const kept = s.held + staked;
           const retained = kept < s.tok ? kept : s.tok;
           qualified.set(u, Number(formatUnits((s.usd * retained) / s.tok, 18)));
         }
 
         const sum = (list: string[]) => list.reduce((t, u) => t + (qualified.get(u) ?? 0), 0);
+        const sumBy = (list: string[], m: Map<string, number>) => list.reduce((t, u) => t + (m.get(u) ?? 0), 0);
         if (!dead) {
           setDirectUsd(sum(directs));
           setTeamUsd(sum(team));
+          setDirectStakedTok(sumBy(directs, stakedTokOf));
+          setDirectStakedUsd(sumBy(directs, stakedUsdOf));
+          setTeamStakedTok(sumBy(team, stakedTokOf));
+          setTeamStakedUsd(sumBy(team, stakedUsdOf));
         }
       } catch {
         /* 读失败保持上一次的值,不要闪回 0 */
@@ -135,7 +164,7 @@ export function useDirectStats() {
     return () => { dead = true; clearInterval(t); };
   }, [client, me]);
 
-  return { directUsd, teamUsd, loading };
+  return { directUsd, teamUsd, directStakedTok, directStakedUsd, teamStakedTok, teamStakedUsd, loading };
 }
 
 export type ReferralState = {

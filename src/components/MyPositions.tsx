@@ -12,7 +12,7 @@ export default function MyPositions() {
   const config = useConfig();
   const { isConnected } = useAccount();
   const { positions, refetch } = usePositions();
-  const { rewardReserve } = useGlobalStats();
+  const { rewardReserve, dayIdx } = useGlobalStats();
   const { totalPending, ready: totalReady } = useTotalPending();
   const { refetch: refetchWallet } = useWallet();
   const { writeContractAsync } = useWriteContract();
@@ -100,7 +100,8 @@ export default function MyPositions() {
       ) : (
         <div className="pos">
           {[...live, ...done].map((p) => (
-            <Row key={p.id} p={p} now={now} busy={busy} reserve={rewardReserve} totalShort={totalShort} onAct={act} />
+            <Row key={p.id} p={p} now={now} busy={busy} reserve={rewardReserve}
+              dayIdx={dayIdx} totalShort={totalShort} onAct={act} />
           ))}
         </div>
       )}
@@ -113,6 +114,7 @@ function Row({
   now,
   busy,
   reserve,
+  dayIdx,
   totalShort,
   onAct,
 }: {
@@ -120,11 +122,30 @@ function Row({
   now: number;
   busy: string | null;
   reserve: bigint;
+  dayIdx: bigint;
   totalShort: boolean;
   onAct: (k: "claim" | "withdraw", id: number) => void;
 }) {
   const end = Number(p.endTime);
   const matured = now > 0 && now >= end;
+
+  // ── 按 U 计价的收益明细(社区要的「质押了多少 U / 每天分多少 / 已领 / 还剩」)──
+  //
+  // 全部按【美元】口径算,而不是按代币:合约本来就是金本位的 —— 入场时把这一单的
+  // 美元奖励预算 rewardUsdPerDay 锁死,之后每天按当日 TWAP 折成币发。所以「已领多少」
+  // 用美元表述才是稳定的,用代币表述每天都在变、对不上账。
+  //
+  // 三段相加恒等于总奖励:已领 + 已结算待领 + 未到期 = rewardUsdPerDay × termDays。
+  // 用「第几格」而不是「第几天」来切,因为合约的上限就是格数(endIdx = 入场格 + 期限天数),
+  // keeper 漏跑一天只是格子往后顺延,不会少发。
+  const rateBps = p.termDays === 60n ? 2500n : 1000n; // 30天 +10% / 60天 +25%
+  const totalUsd = p.rewardUsdPerDay * p.termDays;
+  const stakeUsd = rateBps > 0n ? (totalUsd * 10000n) / rateBps : 0n; // 入场价锁定的本金 U 值
+  const endIdx = p.startDayIdx + p.termDays;
+  const settledIdx = dayIdx > endIdx ? endIdx : dayIdx;               // 已结算到哪一格(封顶)
+  const claimedUsd = p.rewardUsdPerDay * (p.claimedThruIdx > p.startDayIdx ? p.claimedThruIdx - p.startDayIdx : 0n);
+  const pendingUsd = p.rewardUsdPerDay * (settledIdx > p.claimedThruIdx ? settledIdx - p.claimedThruIdx : 0n);
+  const futureUsd = p.rewardUsdPerDay * (endIdx > settledIdx ? endIdx - settledIdx : 0n);
   const claimBusy = busy === `claim-${p.id}`;
   const wdBusy = busy === `withdraw-${p.id}`;
   // 闸1(精确):我这一单就超过池子 —— 无论名单是否完整都成立
@@ -170,6 +191,16 @@ function Row({
             {wdBusy ? "取回中…" : "取回本金"}
           </button>
         )}
+      </div>
+
+      {/* U 口径明细:整行跨列铺开,窄屏自动换行 —— 不去挤上面那行的列宽 */}
+      <div className="udetail">
+        <span><i>质押</i>${fmt(toNum(stakeUsd), 2)}</span>
+        <span><i>每日</i>${fmt(toNum(p.rewardUsdPerDay), 4)}</span>
+        <span><i>已领</i>${fmt(toNum(claimedUsd), 4)}</span>
+        <span className="hi"><i>待领</i>${fmt(toNum(pendingUsd), 4)}</span>
+        <span><i>未到期</i>${fmt(toNum(futureUsd), 4)}</span>
+        <span className="tot"><i>奖励合计</i>${fmt(toNum(totalUsd), 2)}</span>
       </div>
 
       {myShort && (

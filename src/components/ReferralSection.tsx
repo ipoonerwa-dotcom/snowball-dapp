@@ -12,7 +12,7 @@ export default function ReferralSection() {
   const { address, isConnected } = useAccount();
   const ref = useReferral();
   // 直推/团队业绩都实时算(不走 keeper),两个数永远自洽
-  const { directUsd, teamUsd } = useDirectStats();
+  const { directUsd, teamUsd, teamStakedTok, teamStakedUsd } = useDirectStats();
 
   const [inviteLink, setInviteLink] = useState("");
   const [copyState, setCopyState] = useState<"idle" | "ok" | "manual">("idle");
@@ -124,6 +124,22 @@ export default function ReferralSection() {
             <div className="ic">
               <div className="k">团队业绩</div>
               <div className="v">{REFERRAL_ENABLED && isConnected ? fmtUsd(teamUsd) : dash}</div>
+            </div>
+          </div>
+          {/* 团队质押业绩:与「我的签约」同一口径(币按本金,U 按入场价锁定值),
+              团队长看到的数字和成员自己看到的对得上。只算未取回的仓位。 */}
+          <div className="iv">
+            <div className="ic">
+              <div className="k">团队质押(U)</div>
+              <div className="v">{REFERRAL_ENABLED && isConnected ? fmtUsd(teamStakedUsd) : dash}</div>
+            </div>
+            <div className="ic">
+              <div className="k">团队质押(币)</div>
+              <div className="v">
+                {REFERRAL_ENABLED && isConnected
+                  ? teamStakedTok.toLocaleString("en-US", { maximumFractionDigits: 2 })
+                  : dash}
+              </div>
             </div>
           </div>
           <div className="iv">
