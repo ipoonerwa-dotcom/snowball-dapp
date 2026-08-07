@@ -170,6 +170,8 @@ export function useDirectStats() {
 export type ReferralState = {
   referrer: `0x${string}`;   // 我的邀请人(0 = 未绑定)
   bound: boolean;
+  /** referrerOf 已读回。false = 还在加载,别拿它当“没绑过”用 */
+  boundReady: boolean;
   rank: number;              // 0..5(展示用)
   directCount: number;       // 我的直推人数
   myBuyUsd: number;          // 我通过 DApp 的累计买入(USD)
@@ -198,13 +200,24 @@ export function useReferral(): ReferralState {
     query: { enabled: REFERRAL_ENABLED && !!address, refetchInterval: POLL },
   });
 
-  const referrer = (data?.[0]?.result as `0x${string}` | undefined) ?? ZERO;
+  const rawReferrer = data?.[0]?.result as `0x${string}` | undefined;
+  const referrer = rawReferrer ?? ZERO;
   const teamUsdWei = data?.[3]?.result as bigint | undefined;
   const myUsdWei = data?.[4]?.result as bigint | undefined;
 
   return {
     referrer,
     bound: referrer !== ZERO,
+    /**
+     * referrerOf 是否已经读回来了。
+     *
+     * 【为什么必须有这个】首帧 data 还是 undefined → referrer 落到 ZERO → bound=false,
+     * 于是"还没绑过"这个判断在数据到达之前就成立了。自动绑定那段一看 !bound 就直接发交易,
+     * 老用户带 ?ref= 链接进来必然撞 `already bound` 报错框(线上真实反馈,
+     * 0xFa4A…21e0 已绑 0xa666…D419 却仍被弹了一次绑定)。
+     * 任何"没绑过才做"的动作都必须先等 boundReady。
+     */
+    boundReady: rawReferrer !== undefined,
     rank: Number((data?.[1]?.result as number | undefined) ?? 0),
     directCount: Number((data?.[2]?.result as bigint | undefined) ?? 0n),
     myBuyUsd: Number(formatUnits(myUsdWei ?? 0n, 18)),

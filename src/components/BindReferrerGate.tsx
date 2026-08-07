@@ -16,14 +16,18 @@ export default function BindReferrerGate() {
   const config = useConfig();
   const { address, isConnected, chainId } = useAccount();
   const urlRef = useUrlRef();
-  const { bound, referrer, refetch } = useReferral();
+  const { bound, boundReady, referrer, refetch } = useReferral();
   const { writeContractAsync } = useWriteContract();
 
   const [status, setStatus] = useState<"idle" | "signing" | "done" | "rejected">("idle");
   const firedFor = useRef<string>("");
 
+  // boundReady 必须参与判断:链上 referrerOf 没读回来之前 bound 恒为 false,
+  // 老用户带 ?ref= 进来会在数据到达前就被自动发一笔 bindReferrer,合约直接 `already bound` 弹错框
+  // (线上真实反馈:0xFa4A…21e0 早已绑定 0xa666…D419,仍被弹了一次)。
+  // 宁可晚一帧再绑,也不能拿“还没加载”当“没绑过”。
   const eligible =
-    REFERRAL_ENABLED && isConnected && chainId === CHAIN_ID && !!urlRef && !bound && !!address;
+    REFERRAL_ENABLED && isConnected && chainId === CHAIN_ID && !!urlRef && boundReady && !bound && !!address;
 
   async function bind() {
     if (!urlRef) return;
